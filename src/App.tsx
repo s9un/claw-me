@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
   Coins,
+  LogIn,
+  LogOut,
   RotateCcw,
   Sparkles,
   Trophy,
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { AuthModal } from './components/AuthModal';
 import { CapsuleRevealModal } from './components/CapsuleRevealModal';
 import { ClawMachineScene } from './components/ClawMachineScene';
 import type { ClawPhase } from './components/ClawRig';
@@ -20,7 +24,9 @@ import {
   generateInitialCapsules,
   type CapsuleEntity,
   type CollectedPrize,
+  type Rarity,
 } from './data/prizes';
+import { supabase } from './lib/supabase';
 import { soundEngine } from './utils/sound';
 
 const STORAGE_KEY = 'claw-me-collection-v1';
@@ -36,6 +42,9 @@ export function App() {
       return [];
     }
   });
+
+  const [user, setUser] = useState<User | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const [clawPhase, setClawPhase] = useState<ClawPhase>('idle');
   const [dropSignal, setDropSignal] = useState(0);
@@ -54,13 +63,111 @@ export function App() {
     [collection]
   );
 
+  // Load cloud profile & prizes for logged-in user
+  const syncUserData = useCallback(async (loggedUser: User) => {
+    if (!supabase) return;
+
+    const displayName =
+      (loggedUser.user_metadata?.full_name as string | undefined) ||
+      (loggedUser.user_metadata?.name as string | undefined) ||
+      'Player';
+    const avatarUrl =
+      (loggedUser.user_metadata?.avatar_url as string | undefined) ||
+      (loggedUser.user_metadata?.picture as string | undefined) ||
+      null;
+
+    // Ensure profile exists
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('coins')
+      .eq('id', loggedUser.id)
+      .maybeSingle();
+
+    if (profile) {
+      setCoins(profile.coins);
+    } else {
+      await supabase.from('profiles').insert({
+        id: loggedUser.id,
+        display_name: displayName,
+        avatar_url: avatarUrl,
+        coins: 5,
+        total_points: 0,
+      });
+      setCoins(5);
+    }
+
+    const { data: prizes } = await supabase
+      .from('collected_prizes')
+      .select('id, prize_id, name, emoji, rarity, description, points, collected_at')
+      .eq('user_id', loggedUser.id)
+      .order('collected_at', { ascending: false });
+
+    if (prizes) {
+      setCollection(
+        prizes.map((row) => ({
+          uid: row.id as string,
+          id: row.prize_id as string,
+          name: row.name as string,
+          emoji: row.emoji as string,
+          rarity: row.rarity as Rarity,
+          description: row.description as string,
+          points: row.points as number,
+          collectedAt: new Date(row.collected_at as string).getTime(),
+        }))
+      );
+    }
+  }, []);
+
+  // Subscribe to Supabase Auth state
   useEffect(() => {
+    if (!supabase) return;
+
+    supabase.auth.getSession().then(({ data }) => {
+      const currentUser = data.session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        syncUserData(currentUser);
+      }
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      if (nextUser) {
+        setAuthModalOpen(false);
+        syncUserData(nextUser);
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, [syncUserData]);
+
+  // Persist guest collection locally when not logged in
+  useEffect(() => {
+    if (user) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(collection));
     } catch {
       // Ignore storage quota errors
     }
-  }, [collection]);
+  }, [collection, user]);
+
+  const updateCloudCoins = useCallback(
+    async (nextCoins: number, nextTotalPoints?: number) => {
+      if (!supabase || !user) return;
+      const payload: { coins: number; updated_at: string; total_points?: number } = {
+        coins: nextCoins,
+        updated_at: new Date().toISOString(),
+      };
+      if (nextTotalPoints !== undefined) {
+        payload.total_points = nextTotalPoints;
+      }
+      await supabase.from('profiles').update(payload).eq('id', user.id);
+    },
+    [user]
+  );
 
   const recomputeInput = useCallback(() => {
     const keys = keysRef.current;
@@ -78,15 +185,17 @@ export function App() {
   }, []);
 
   const triggerDrop = useCallback(() => {
-    if (clawPhase !== 'idle' || pendingReveal || drawerOpen) return;
+    if (clawPhase !== 'idle' || pendingReveal || drawerOpen || authModalOpen) return;
     if (coins <= 0) {
       setStatusText('Koin habis! Klik "+5 Koin" untuk lanjut bermain.');
       return;
     }
-    setCoins((c) => c - 1);
+    const nextCoins = coins - 1;
+    setCoins(nextCoins);
+    updateCloudCoins(nextCoins);
     setDropSignal((s) => s + 1);
     setStatusText('Menurunkan capit...');
-  }, [clawPhase, coins, drawerOpen, pendingReveal]);
+  }, [authModalOpen, clawPhase, coins, drawerOpen, pendingReveal, updateCloudCoins]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -132,27 +241,45 @@ export function App() {
     else if (phase === 'releasing') setStatusText('Melepaskan...');
   }, []);
 
-  const handleCapsuleWon = useCallback((uid: string) => {
-    setCapsules((prev) => {
-      const won = prev.find((c) => c.uid === uid);
-      if (!won) return prev;
+  const handleCapsuleWon = useCallback(
+    (uid: string) => {
+      setCapsules((prev) => {
+        const won = prev.find((c) => c.uid === uid);
+        if (!won) return prev;
 
-      soundEngine.playWin();
-      setPendingReveal(won);
-      setCollection((col) => [
-        { ...won.prize, uid: won.uid, collectedAt: Date.now() },
-        ...col,
-      ]);
-      setStatusText(`Yeay! Kamu mendapatkan kapsul ${won.prize.rarity.toUpperCase()}!`);
+        soundEngine.playWin();
+        setPendingReveal(won);
+        setCollection((col) => {
+          const nextCol = [{ ...won.prize, uid: won.uid, collectedAt: Date.now() }, ...col];
+          if (supabase && user) {
+            const nextPoints = nextCol.reduce((sum, item) => sum + item.points, 0);
+            supabase
+              .from('collected_prizes')
+              .insert({
+                user_id: user.id,
+                prize_id: won.prize.id,
+                name: won.prize.name,
+                emoji: won.prize.emoji,
+                rarity: won.prize.rarity,
+                description: won.prize.description,
+                points: won.prize.points,
+              })
+              .then(() => updateCloudCoins(coins, nextPoints));
+          }
+          return nextCol;
+        });
+        setStatusText(`Yeay! Kamu mendapatkan kapsul ${won.prize.rarity.toUpperCase()}!`);
 
-      const remaining = prev.filter((c) => c.uid !== uid);
-      if (remaining.length < 8) {
-        const refill = Array.from({ length: 6 }, (_, i) => createRandomCapsule(i));
-        return [...remaining, ...refill];
-      }
-      return remaining;
-    });
-  }, []);
+        const remaining = prev.filter((c) => c.uid !== uid);
+        if (remaining.length < 8) {
+          const refill = Array.from({ length: 6 }, (_, i) => createRandomCapsule(i));
+          return [...remaining, ...refill];
+        }
+        return remaining;
+      });
+    },
+    [coins, updateCloudCoins, user]
+  );
 
   const handleAttemptFinished = useCallback((grabbedSomething: boolean) => {
     if (!grabbedSomething) {
@@ -162,7 +289,9 @@ export function App() {
 
   const handleInsertCoins = () => {
     soundEngine.playCoin();
-    setCoins((c) => c + 5);
+    const nextCoins = coins + 5;
+    setCoins(nextCoins);
+    updateCloudCoins(nextCoins);
     setStatusText('+5 Koin dimasukkan! Selamat bermain.');
   };
 
@@ -171,12 +300,34 @@ export function App() {
     setStatusText('Kapsul di dalam mesin telah diisi ulang!');
   };
 
+  const handleLogout = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setUser(null);
+    setCoins(5);
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      setCollection(raw ? (JSON.parse(raw) as CollectedPrize[]) : []);
+    } catch {
+      setCollection([]);
+    }
+    setStatusText('Kamu telah keluar. Bermain dalam mode tamu.');
+  };
+
   const toggleMute = () => {
     soundEngine.muted = !muted;
     setMuted(!muted);
   };
 
-  const canPlay = coins > 0 && !pendingReveal && !drawerOpen;
+  const canPlay = coins > 0 && !pendingReveal && !drawerOpen && !authModalOpen;
+  const userAvatar =
+    (user?.user_metadata?.avatar_url as string | undefined) ||
+    (user?.user_metadata?.picture as string | undefined);
+  const userName =
+    (user?.user_metadata?.full_name as string | undefined) ||
+    (user?.user_metadata?.name as string | undefined) ||
+    user?.email ||
+    'Player';
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#090714]">
@@ -211,8 +362,42 @@ export function App() {
           </div>
         </div>
 
-        {/* Right Controls: Coins, Collection, Refill, Mute */}
+        {/* Right Controls: Auth, Coins, Collection, Refill, Mute */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+          {user ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-slate-950/75 px-3 py-1.5 backdrop-blur-md">
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt={userName}
+                  className="h-6 w-6 rounded-full border border-white/20 object-cover"
+                />
+              ) : (
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/30 text-xs font-bold text-emerald-200">
+                  {userName.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="hidden max-w-28 truncate text-xs font-semibold text-emerald-200 sm:inline">
+                {userName}
+              </span>
+              <button
+                onClick={handleLogout}
+                title="Keluar"
+                className="rounded-lg bg-white/10 p-1 text-slate-300 transition hover:bg-rose-500/30 hover:text-white"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="flex items-center gap-2 rounded-2xl border border-cyan-400/35 bg-cyan-500/15 px-3.5 py-2 text-xs font-semibold text-cyan-200 backdrop-blur-md transition hover:bg-cyan-500/25 active:scale-95"
+            >
+              <LogIn className="h-4 w-4" />
+              <span>Login (Google / FB)</span>
+            </button>
+          )}
+
           <div className="flex items-center gap-2 rounded-2xl border border-amber-400/30 bg-slate-950/75 px-3.5 py-2 backdrop-blur-md">
             <Coins className="h-4 w-4 text-amber-400" />
             <span className="font-display text-base font-bold text-amber-300">{coins}</span>
@@ -322,6 +507,9 @@ export function App() {
         totalPoints={totalPoints}
         onClose={() => setDrawerOpen(false)}
       />
+
+      {/* Google / Facebook SSO Modal */}
+      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </div>
   );
 }
