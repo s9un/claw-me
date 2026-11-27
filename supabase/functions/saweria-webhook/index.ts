@@ -1,34 +1,28 @@
 // Supabase Edge Function: saweria-webhook
 // Docs: https://saweria.co/docs/webhook
-// Deploy: supabase functions deploy saweria-webhook --no-verify-jwt
+// Deploy: npx supabase functions deploy saweria-webhook --no-verify-jwt
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SAWERIA_STREAM_KEY = Deno.env.get('SAWERIA_STREAM_KEY') ?? '';
+const SAWERIA_STREAM_KEY = (Deno.env.get('SAWERIA_STREAM_KEY') ?? '').trim();
 const TOKEN_PRICE_IDR = Number(Deno.env.get('TOKEN_PRICE_IDR') ?? '1000');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-async function verifySaweriaSignature(
-  payloadText: string,
-  signatureHeader: string | null,
-  streamKey: string
-): Promise<boolean> {
-  if (!streamKey || !signatureHeader) return false;
+async function computeHmacHex(message: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(streamKey),
+    encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
   );
-  const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadText));
-  const expectedHex = Array.from(new Uint8Array(sigBuffer))
+  const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  return Array.from(new Uint8Array(sigBuffer))
     .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  return expectedHex.toLowerCase() === signatureHeader.toLowerCase();
+    .join('')
+    .toLowerCase();
 }
 
 Deno.serve(async (req) => {
@@ -37,20 +31,10 @@ Deno.serve(async (req) => {
   }
 
   const rawBody = await req.text();
-  const signature = req.headers.get('saweria-callback-signature');
-
-  if (SAWERIA_STREAM_KEY) {
-    const valid = await verifySaweriaSignature(rawBody, signature, SAWERIA_STREAM_KEY);
-    if (!valid) {
-      console.error('Invalid Saweria signature. Header present:', Boolean(signature));
-      return new Response(JSON.stringify({ error: 'Invalid Saweria signature' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-  }
+  const signature = req.headers.get('saweria-callback-signature')?.trim().toLowerCase() ?? null;
 
   let payload: {
+    version?: string;
     id?: string;
     amount_raw?: number;
     donator_name?: string;
@@ -61,7 +45,41 @@ Deno.serve(async (req) => {
   try {
     payload = JSON.parse(rawBody);
   } catch {
+    console.error('Invalid JSON body:', rawBody.slice(0, 200));
     return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
+  }
+
+  console.log('Saweria webhook received:', {
+    hasSignature: Boolean(signature),
+    id: payload.id,
+    amount_raw: payload.amount_raw,
+    donator_name: payload.donator_name,
+  });
+
+  if (SAWERIA_STREAM_KEY) {
+    if (!signature) {
+      console.error('Missing saweria-callback-signature header');
+      return new Response(JSON.stringify({ error: 'Missing Saweria signature' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const expectedRaw = await computeHmacHex(rawBody, SAWERIA_STREAM_KEY);
+    const concatData = `${payload.version ?? ''}${payload.id ?? ''}${payload.amount_raw ?? ''}${payload.donator_name ?? ''}${payload.donator_email ?? ''}`;
+    const expectedConcat = await computeHmacHex(concatData, SAWERIA_STREAM_KEY);
+
+    if (signature !== expectedRaw && signature !== expectedConcat) {
+      console.error('Invalid Saweria signature', {
+        receivedPrefix: signature.slice(0, 10),
+        expectedRawPrefix: expectedRaw.slice(0, 10),
+        expectedConcatPrefix: expectedConcat.slice(0, 10),
+      });
+      return new Response(JSON.stringify({ error: 'Invalid Saweria signature' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   const txId = payload.id;
@@ -93,8 +111,8 @@ Deno.serve(async (req) => {
 
   // Extract username from message format "CLAW:username" or match donator_email / donator_name
   const message = payload.message ?? '';
-  const match = message.match(/CLAW:([a-zA-Z0-9_]{3,20})/i);
-  const targetUsername = match?.[1] ?? payload.donator_name?.trim();
+  const match = message.match(/CLAW:\s*([a-z0-9]{3,20})/i);
+  const targetUsername = match?.[1]?.toLowerCase() ?? payload.donator_name?.trim().toLowerCase();
   const targetEmail = payload.donator_email?.trim();
 
   let profile: { id: string; paid_tokens: number } | null = null;
@@ -127,7 +145,7 @@ Deno.serve(async (req) => {
       .eq('id', profile.id);
   }
 
-  await supabase.from('saweria_transactions').insert({
+  const { error: insertErr } = await supabase.from('saweria_transactions').insert({
     id: txId,
     user_id: profile?.id ?? null,
     username_or_email: targetUsername || targetEmail || null,
@@ -135,6 +153,10 @@ Deno.serve(async (req) => {
     tokens_added: tokensToAdd,
     raw_payload: payload,
   });
+
+  if (insertErr) {
+    console.error('Failed to insert saweria_transactions:', insertErr);
+  }
 
   return new Response(
     JSON.stringify({ ok: true, tokens_added: tokensToAdd, matched_user: Boolean(profile) }),
