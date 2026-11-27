@@ -12,7 +12,6 @@ import {
   LogIn,
   LogOut,
   RotateCcw,
-  Sparkles,
   Trophy,
   Volume2,
   VolumeX,
@@ -643,7 +642,27 @@ export function App() {
         {/* Left: Brand, Series Picker & Status */}
         <div className="pointer-events-auto flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-white/15 bg-slate-950/75 px-4 py-2 backdrop-blur-md">
-            <Sparkles className="h-5 w-5 text-pink-400" />
+            <svg className="h-6 w-6 shrink-0" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <rect x="30" y="4" width="4" height="10" rx="2" fill="#cbd5e1" />
+              <rect x="24" y="13" width="16" height="6" rx="3" fill="#e2e8f0" />
+              <path
+                d="M25 18 L14 31 L20 43"
+                stroke="#38bdf8"
+                strokeWidth="4.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M39 18 L50 31 L44 43"
+                stroke="#38bdf8"
+                strokeWidth="4.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path d="M21 44 A11 11 0 0 1 43 44 Z" fill="#f43f5e" />
+              <path d="M21 44 A11 11 0 0 0 43 44 Z" fill="#f8fafc" />
+              <rect x="20.5" y="42.5" width="23" height="3" rx="1.5" fill="#fde047" />
+            </svg>
             <h1 className="font-display bg-gradient-to-r from-yellow-200 via-pink-300 to-cyan-300 bg-clip-text text-xl font-bold tracking-wide text-transparent">
               CAPIT
             </h1>

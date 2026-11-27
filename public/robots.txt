@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://capit.web.id/sitemap.xml
