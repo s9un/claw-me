@@ -35,7 +35,7 @@ export const SERIES_LIST: SeriesInfo[] = [
   {
     id: 'first-edition',
     name: 'First Edition',
-    description: 'Seri perdana: 90 hewan unik + huruf CLAWME!',
+    description: 'Seri perdana: 90 Collectibles ME unik + huruf CLAWME!',
     isActive: true,
     badge: 'AKTIF',
   },
@@ -181,7 +181,7 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
     });
   });
 
-  // Tier B: 50 Cute Animals (Bronze)
+  // Tier B: 50 Cute Collectibles ME (Bronze)
   TIER_B_ANIMALS.forEach(([name, emoji], idx) => {
     items.push({
       id: `b-${String(idx + 1).padStart(2, '0')}`,
@@ -191,12 +191,12 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
       kind: 'animal',
       emoji,
       accentColor: '#d97706',
-      description: `Koleksi hewan lucu edisi Bronze #${idx + 1}.`,
+      description: `Collectibles ME edisi Bronze #${idx + 1}.`,
       points: 100,
     });
   });
 
-  // Tier A: 25 Cute Animals (Silver)
+  // Tier A: 25 Cute Collectibles ME (Silver)
   TIER_A_ANIMALS.forEach(([name, emoji], idx) => {
     items.push({
       id: `a-${String(idx + 1).padStart(2, '0')}`,
@@ -206,12 +206,12 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
       kind: 'animal',
       emoji,
       accentColor: '#e2e8f0',
-      description: `Koleksi hewan lucu edisi Silver #${idx + 1}.`,
+      description: `Collectibles ME edisi Silver #${idx + 1}.`,
       points: 250,
     });
   });
 
-  // Tier SS: 10 Futuristic Cool Animals (Gold)
+  // Tier SS: 10 Futuristic Cool Collectibles ME (Gold)
   TIER_SS_ANIMALS.forEach(([name, emoji], idx) => {
     items.push({
       id: `ss-${String(idx + 1).padStart(2, '0')}`,
@@ -221,12 +221,12 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
       kind: 'animal',
       emoji,
       accentColor: '#facc15',
-      description: `Hewan futuristik edisi Gold #${idx + 1} dengan aura energi siber!`,
+      description: `Collectibles ME futuristik edisi Gold #${idx + 1} dengan aura energi siber!`,
       points: 750,
     });
   });
 
-  // Tier SSR: 5 Fierce Cool Animals (Sparkling Diamond)
+  // Tier SSR: 5 Fierce Cool Collectibles ME (Sparkling Diamond)
   TIER_SSR_ANIMALS.forEach(([name, emoji], idx) => {
     items.push({
       id: `ssr-${String(idx + 1).padStart(2, '0')}`,
@@ -236,7 +236,7 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
       kind: 'animal',
       emoji,
       accentColor: '#38bdf8',
-      description: `Hewan sangar legendaris edisi Sparkling Diamond #${idx + 1}!`,
+      description: `Collectibles ME sangar legendaris edisi Sparkling Diamond #${idx + 1}!`,
       points: 2500,
     });
   });

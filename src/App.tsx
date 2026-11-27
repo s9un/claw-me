@@ -34,22 +34,33 @@ import {
   type CapsuleEntity,
   type CollectibleItem,
 } from './data/collectibles';
+import { GAME_MODES, type GameModeId } from './data/gameModes';
 import { supabase } from './lib/supabase';
 import { soundEngine } from './utils/sound';
-import { getTimeUntilWibMidnight } from './utils/timeWib';
+import { getTimeUntilWibMidnight, getTodayWibDateString } from './utils/timeWib';
 
 const GUEST_TOKENS_KEY = 'claw-me-guest-tokens-v1';
+const GUEST_RESET_DATE_KEY = 'claw-me-guest-reset-date-v1';
 const GUEST_COLLECTION_KEY = 'claw-me-guest-collection-v1';
 
 export function App() {
+  const [gameModeId, setGameModeId] = useState<GameModeId>('classic');
+  const activeMode = GAME_MODES[gameModeId];
   const [activeSeriesId, setActiveSeriesId] = useState('first-edition');
   const [capsules, setCapsules] = useState<CapsuleEntity[]>(() =>
     generateInitialCapsules(18, 'first-edition')
   );
 
-  // Guest tokens (max 3, persisted locally)
+  // Guest tokens (max 3, resets daily at 00:00 AM GMT+7)
   const [guestTokens, setGuestTokens] = useState<number>(() => {
     try {
+      const todayWib = getTodayWibDateString();
+      const savedDate = localStorage.getItem(GUEST_RESET_DATE_KEY);
+      if (savedDate !== todayWib) {
+        localStorage.setItem(GUEST_RESET_DATE_KEY, todayWib);
+        localStorage.setItem(GUEST_TOKENS_KEY, '3');
+        return 3;
+      }
       const raw = localStorage.getItem(GUEST_TOKENS_KEY);
       if (raw !== null) return Math.min(3, Math.max(0, Number(raw)));
     } catch {
@@ -102,7 +113,11 @@ export function App() {
   const usedPityOnCurrentTurnRef = useRef(false);
 
   const totalTokens = user ? freeTokens + paidTokens : guestTokens;
-  const catchChance = user ? (pityBonusActive ? 90 : 10) : 30;
+  const catchChance = user
+    ? pityBonusActive
+      ? activeMode.pityCatchChance
+      : activeMode.normalCatchChance
+    : activeMode.guestCatchChance;
 
   const unlockedAnimalsCount = useMemo(() => {
     const animals = getCollectiblesBySeries(activeSeriesId).filter((i) => i.kind === 'animal');
@@ -523,6 +538,29 @@ export function App() {
               CLAW ME!
             </h1>
 
+            {/* Mode Selector (Scalable) */}
+            <div className="flex items-center gap-1 rounded-xl border border-white/15 bg-slate-900 px-2.5 py-1">
+              <select
+                value={gameModeId}
+                onChange={(e) => {
+                  const id = e.target.value as GameModeId;
+                  if (GAME_MODES[id].isAvailable) {
+                    setGameModeId(id);
+                  } else {
+                    setStatusText(`${GAME_MODES[id].name} akan hadir pada update berikutnya!`);
+                  }
+                }}
+                className="bg-transparent text-xs font-semibold text-pink-200 focus:outline-none"
+                aria-label="Pilih Mode Permainan"
+              >
+                {Object.values(GAME_MODES).map((m) => (
+                  <option key={m.id} value={m.id} className="bg-slate-900 text-white">
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Series Selector */}
             <div className="flex items-center gap-1 rounded-xl border border-white/15 bg-slate-900 px-2.5 py-1">
               <Layers className="h-3.5 w-3.5 text-cyan-300" />
@@ -592,36 +630,39 @@ export function App() {
             </button>
           )}
 
-          {/* Token Pill */}
+          {/* CCoin Stacked Display (Top: Gratis Blue, Bottom: Berbayar Yellow) */}
           <div
-            className="flex items-center gap-2 rounded-2xl border border-amber-400/30 bg-slate-950/75 px-3.5 py-2 backdrop-blur-md"
+            className="flex items-center gap-2.5 rounded-2xl border border-white/15 bg-slate-950/80 px-3.5 py-1.5 backdrop-blur-md"
             title={
               user
-                ? `Gratis: ${freeTokens} | Berbayar: ${paidTokens} • Reset harian GMT+7 dalam ${getTimeUntilWibMidnight()}`
-                : 'Mode Tamu (maks 3 token)'
+                ? `CCoin Gratis: ${freeTokens} | CCoin Berbayar: ${paidTokens} • Reset harian GMT+7 dalam ${getTimeUntilWibMidnight()}`
+                : `CCoin Gratis Tamu (maks 3/hari) • Reset GMT+7 dalam ${getTimeUntilWibMidnight()}`
             }
           >
-            <Coins className="h-4 w-4 text-amber-400" />
-            {user ? (
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="font-display text-sm font-bold text-cyan-300">
-                  {freeTokens}G
+            <div className="flex flex-col leading-tight">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400">
+                <Coins className="h-3.5 w-3.5" />
+                <span>CCoin Gratis:</span>
+                <span className="font-display text-sm text-sky-300">
+                  {user ? freeTokens : `${guestTokens}/3`}
                 </span>
-                <span className="text-slate-500">+</span>
-                <span className="font-display text-sm font-bold text-amber-300">
-                  {paidTokens}B
-                </span>
-                <button
-                  onClick={() => setSaweriaModalOpen(true)}
-                  className="ml-1 rounded-lg bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200 transition hover:bg-amber-400/35 active:scale-95"
-                >
-                  + Beli
-                </button>
               </div>
-            ) : (
-              <span className="font-display text-sm font-bold text-amber-300">
-                {guestTokens}/3 Tamu
-              </span>
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                <Coins className="h-3.5 w-3.5" />
+                <span>CCoin Berbayar:</span>
+                <span className="font-display text-sm text-amber-300">
+                  {user ? paidTokens : 0}
+                </span>
+              </div>
+            </div>
+
+            {user && (
+              <button
+                onClick={() => setSaweriaModalOpen(true)}
+                className="rounded-xl bg-amber-400/20 px-2.5 py-1.5 text-[11px] font-bold text-amber-200 transition hover:bg-amber-400/35 active:scale-95"
+              >
+                + Beli
+              </button>
             )}
           </div>
 

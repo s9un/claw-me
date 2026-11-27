@@ -74,7 +74,7 @@ export function AlbumModal({
             <div>
               <h2 className="font-display text-xl font-bold text-white">Album Koleksi & Inventori</h2>
               <p className="text-xs text-slate-400">
-                Terbuka: <strong className="text-white">{unlockedCount}</strong> / {animalItems.length} Hewan
+                Terbuka: <strong className="text-white">{unlockedCount}</strong> / {animalItems.length} Collectibles ME
               </p>
             </div>
           </div>
