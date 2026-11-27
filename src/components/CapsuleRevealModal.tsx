@@ -106,12 +106,6 @@ export function CapsuleRevealModal({
             <h2 className="font-display text-2xl font-bold text-white">{prize.name}</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-300">{prize.description}</p>
 
-            {prize.points > 0 && (
-              <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-1.5 text-sm font-semibold text-amber-300">
-                +{prize.points} Poin Koleksi
-              </div>
-            )}
-
             {isGuest && prize.kind !== 'zonk' && (
               <p className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
                 Mode Tamu: hadiah ini tidak disimpan meskipun nanti Anda mendaftar akun baru.

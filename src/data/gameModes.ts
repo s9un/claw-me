@@ -20,7 +20,7 @@ export const GAME_MODES: Record<GameModeId, GameModeConfig> = {
     isAvailable: true,
     clawSpeed: 1.65,
     guestCatchChance: 30,
-    normalCatchChance: 10,
+    normalCatchChance: 30,
     pityCatchChance: 90,
     pityThreshold: 10,
   },

@@ -9,7 +9,7 @@ Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/depl
 
 1. **Percobaan Tamu (Non-Login):** User belum login dapat mencoba permainan sebanyak **3x**, setelah itu diwajibkan login.
 2. **Peluang Tamu:** User belum login mendapat chance berhasil mencapit **30%**. Jika mendapatkan hadiah, **hadiah tidak akan disimpan** meskipun dia berhasil mendaftar akun baru.
-3. **Username User Login:** User login dapat merubah username mereka sendiri; pada awal login pertama diminta wajib membuat username baru.
+3. **Username User Login:** Pada awal login pertama diminta wajib membuat username baru dari menu popup (hanya huruf kecil & angka `a-z0-9`, 3–20 karakter, tanpa spasi/tanda baca, unik) dan langsung disimpan secara permanen (tidak dapat diganti).
 4. **Data User Login:** Disimpan `username`, `email`, dan jumlah token koin (`free_tokens` & `paid_tokens`) via Google SSO (Supabase Auth).
 5. **Konfigurasi Peluang:** User login memiliki chance mendapatkan hadiah sesuai rarity yang dapat ditentukan di config database (`public.game_config`).
 6. **Sistem Token (`CCoin`) & Reset Harian:**
@@ -23,14 +23,14 @@ Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/depl
 11. **Tier Hadiah:** Total ada **5 tier** (`C`, `B`, `A`, `SS`, `SSR`).
 12. **Tier C:**
     - `Zonk` (kosong/tidak beruntung) — *tidak* dihitung gagal dalam pity system (dianggap berhasil mendapat kapsul/hadiah).
-    - Sticker huruf bertuliskan `C` / `L` / `A` / `W` / `M` / `E` (1 huruf per 1 hadiah).
-    - Jika lengkap mengumpulkan `C-L-A-W-M-E`, user dapat menukarkannya dengan **+5 CCoin Gratis** melalui menu Album/Inventori.
+    - Sticker huruf bertuliskan `C` / `A` / `P` / `I` / `T` (1 huruf per 1 hadiah).
+    - Jika lengkap mengumpulkan `C-A-P-I-T`, user dapat menukarkannya dengan **+5 CCoin Free** melalui menu Album/Inventori.
 13. **Tier B:** 50 gambar **Collectibles ME** lucu berbeda dengan **frame Bronze**.
 14. **Tier A:** 25 gambar **Collectibles ME** lucu berbeda dengan **frame Silver**.
 15. **Tier SS:** 10 gambar **Collectibles ME** keren futuristik berbeda dengan **frame Gold**.
 16. **Tier SSR:** 5 gambar **Collectibles ME** sangar garang keren berbeda dengan **frame Diamond berkilau**.
 17. **Kalkulasi Peluang User Login:**
-    - Setiap kali mencapit, chance dibagi 2: **10% dapat / 90% tidak dapat** (capit slip/lepas).
+    - Setiap kali mencapit, chance dibagi 2: **30% dapat / 70% tidak dapat** (capit slip/lepas).
     - Saat **dapat**, kalkulasi rarity hadiah: **Tier C `58.9%`**, **Tier B `25%`**, **Tier A `15%`**, **Tier SS `1%`**, **Tier SSR `0.1%`**.
 18. **Pity System:** Ketika user gagal mencapit (capit gagal/lepas) **10x berturut-turut**, muncul popup **Bonus Drop Rate** selama 1x main berikutnya di mana chance berbalik menjadi **90% dapat / 10% tidak dapat**.
 19. **Album Koleksi:** Menampilkan **Collectibles ME** yang sudah didapat dalam bentuk sticker ter-reveal sesuai frame tier-nya, dan yang belum didapat hanya berupa **siluet**.
@@ -40,6 +40,11 @@ Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/depl
 23. **Penamaan Hadiah:** Selalu gunakan istilah **Collectibles ME** (jangan gunakan kata *hewan*).
 24. **Skalabilitas Mode:** Arsitektur mendukung penambahan mode permainan baru di masa depan (`src/data/gameModes.ts`).
 25. **Optimasi Mobile:** Permainan dioptimalkan untuk penggunaan di layar browser handphone (`100dvh`, kamera responsif, dan kontrol sentuh `touch-none`).
+26. **Leaderboard:** Peringkat dihitung dari jumlah **Collectibles ME unik** yang terbuka (`unlocked_count DESC`), dengan *tie-breaker* 1: jumlah tier langka terbanyak (`SSR → SS → A → B`), dan *tie-breaker* 2: siapa yang lebih dulu mencapainya (`MAX(first_obtained_at) ASC`).
+27. **Tumpukan Duplikat & Trade:** Item kembar dapat ditumpuk (`quantity`) untuk fitur *trade* antar user di masa depan, dengan catatan asal item pada penerima sebagai item *trade* (bukan hasil capit).
+28. **Penanda Asal Item:** Setiap item di `user_collectibles` memiliki penanda `capit_quantity`, `trade_quantity`, dan `traded_from_usernames`.
+29. **Tanpa Laser Pointer:** Tidak ada *laser pointer* vertikal maupun *target ring* di lantai; membidik kapsul mengandalkan insting dan sudut pandang kamera.
+30. **Tema Kabinet 3D Per Series:** Tampilan mesin capit 3D bertema sesuai `seriesId` yang dipilih (contoh: `first-edition` bertema hewan dengan telinga 3D, lantai rumput, dan ornamen jejak kaki; seri masa depan otomatis mengganti tema kabinet).
 
 ---
 

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kebijakan Privasi — CAPIT</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: radial-gradient(circle at 50% 0%, #1b1638 0%, #090714 70%);
+        color: #e2e8f0;
+        line-height: 1.7;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 40px 20px 64px;
+      }
+      .card {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 32px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.85rem;
+        color: #fff;
+      }
+      h2 {
+        margin-top: 28px;
+        font-size: 1.15rem;
+        color: #38bdf8;
+      }
+      p, li {
+        color: #cbd5e1;
+        font-size: 0.95rem;
+      }
+      .meta {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 24px;
+      }
+      a {
+        color: #38bdf8;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .back {
+        display: inline-block;
+        margin-bottom: 18px;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <a class="back" href="./">&larr; Kembali ke Game CAPIT</a>
+      <div class="card">
+        <h1>Kebijakan Privasi (Privacy Policy)</h1>
+        <p class="meta">Berlaku untuk situs <strong>CAPIT</strong> (capit.web.id) • Terakhir diperbarui: 28 November 2026</p>
+
+        <p>
+          Privasi Anda penting bagi kami. Dokumen ini menjelaskan bagaimana <strong>CAPIT</strong>
+          mengumpulkan, menggunakan, dan melindungi informasi Anda saat bermain menggunakan mode
+          tamu maupun saat masuk menggunakan Google Sign-In (SSO).
+        </p>
+
+        <h2>1. Informasi yang Kami Kumpulkan</h2>
+        <ul>
+          <li><strong>Data Akun Google:</strong> Saat Anda login melalui Google SSO, kami hanya menerima alamat <em>email</em>, nama tampilan, dan foto profil standar dari Google.</li>
+          <li><strong>Username &amp; Data Permainan:</strong> Username pilihan Anda, saldo <em>CCoin Free</em> dan <em>CCoin Paid</em>, progres <em>pity counter</em>, serta daftar koleksi <em>Collectibles ME</em>.</li>
+          <li><strong>Riwayat Top-up Saweria:</strong> Jika Anda melakukan pembelian token melalui Saweria, kami mencatat ID transaksi, nominal, dan jumlah token yang ditambahkan untuk keperluan verifikasi dan mencegah klaim ganda.</li>
+          <li><strong>Penyimpanan Lokal (Mode Tamu):</strong> Untuk pemain tanpa login, kuota harian tamu (maksimal 3 percobaan per hari) disimpan secara lokal di browser Anda (<code>localStorage</code>).</li>
+        </ul>
+
+        <h2>2. Penggunaan Informasi</h2>
+        <p>Data yang dikumpulkan semata-mata digunakan untuk:</p>
+        <ul>
+          <li>Menyimpan progres koleksi <em>Collectibles ME</em> dan saldo <em>CCoin</em> Anda di cloud (Supabase).</li>
+          <li>Mengatur reset token gratis harian berdasarkan zona waktu GMT+7 (WIB).</li>
+          <li>Memproses penambahan <em>CCoin Paid</em> dari transaksi Saweria.</li>
+        </ul>
+        <p>Kami <strong>tidak menjual, menyewakan, atau membagikan</strong> data pribadi Anda kepada pihak ketiga untuk keperluan iklan.</p>
+
+        <h2>3. Keamanan &amp; Penyimpanan Data</h2>
+        <p>
+          Data akun dan koleksi disimpan menggunakan layanan <strong>Supabase</strong> (PostgreSQL)
+          dengan proteksi <em>Row Level Security (RLS)</em> sehingga hanya akun Anda sendiri yang
+          dapat mengakses dan memperbarui data profil Anda.
+        </p>
+
+        <h2>4. Hak Pengguna &amp; Penghapusan Data</h2>
+        <p>
+          Anda dapat mengubah username kapan saja di dalam game. Apabila Anda ingin meminta
+          penghapusan akun beserta seluruh data terkait, silakan hubungi pengelola melalui email
+          yang tercantum pada halaman profil pengembang di Google OAuth atau repositori resmi proyek.
+        </p>
+
+        <p style="margin-top: 28px;">
+          Lihat juga <a href="./terms.html">Syarat &amp; Ketentuan (Terms of Service)</a>.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>

@@ -6,7 +6,7 @@ import {
   ArrowRight,
   ArrowUp,
   Coins,
-  Edit3,
+  Crown,
   Flame,
   Layers,
   LogIn,
@@ -22,6 +22,7 @@ import { AuthModal } from './components/AuthModal';
 import { CapsuleRevealModal } from './components/CapsuleRevealModal';
 import { ClawMachineScene } from './components/ClawMachineScene';
 import type { ClawPhase } from './components/ClawRig';
+import { LeaderboardModal } from './components/LeaderboardModal';
 import { PityBonusModal } from './components/PityBonusModal';
 import { SaweriaModal } from './components/SaweriaModal';
 import { UsernameModal } from './components/UsernameModal';
@@ -34,6 +35,7 @@ import {
   SERIES_LIST,
   type CapsuleEntity,
   type CollectibleItem,
+  type OwnedCollectibleMeta,
   type RarityRatesConfig,
 } from './data/collectibles';
 import { GAME_MODES, type GameModeId } from './data/gameModes';
@@ -84,16 +86,16 @@ export function App() {
   const [dbCatchPity, setDbCatchPity] = useState<number | null>(null);
   const [pityThreshold, setPityThreshold] = useState<number>(10);
 
-  // Owned counts keyed by `${seriesId}:${collectibleId}` (logged-in users only)
-  const [ownedCounts, setOwnedCounts] = useState<Record<string, number>>({});
+  // Owned items keyed by `${seriesId}:${collectibleId}` (logged-in users only)
+  const [ownedItems, setOwnedItems] = useState<Record<string, OwnedCollectibleMeta>>({});
 
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [usernameModalOpen, setUsernameModalOpen] = useState(false);
-  const [usernameRequired, setUsernameRequired] = useState(false);
   const [saweriaModalOpen, setSaweriaModalOpen] = useState(false);
   const [pityModalOpen, setPityModalOpen] = useState(false);
   const [albumOpen, setAlbumOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
   const [clawPhase, setClawPhase] = useState<ClawPhase>('idle');
   const [dropSignal, setDropSignal] = useState(0);
@@ -120,8 +122,9 @@ export function App() {
 
   const unlockedAnimalsCount = useMemo(() => {
     const animals = getCollectiblesBySeries(activeSeriesId).filter((i) => i.kind === 'animal');
-    return animals.filter((i) => (ownedCounts[`${activeSeriesId}:${i.id}`] ?? 0) > 0).length;
-  }, [activeSeriesId, ownedCounts]);
+    return animals.filter((i) => (ownedItems[`${activeSeriesId}:${i.id}`]?.quantity ?? 0) > 0)
+      .length;
+  }, [activeSeriesId, ownedItems]);
 
   // Persist guest token count only (Rule #2: guest prizes are NOT saved)
   useEffect(() => {
@@ -162,44 +165,99 @@ export function App() {
   const syncUserData = useCallback(async (loggedUser: User) => {
     if (!supabase) return;
 
-    // 1. Claim daily +3 free tokens if new GMT+7 day
-    const { data: claimData } = await supabase.rpc('claim_daily_tokens');
-
-    // 2. Fetch profile
-    const { data: profile } = await supabase
+    // 1. Fetch profile first (create if missing, e.g. user registered before trigger existed)
+    const { data: existingProfile, error: profileError } = await supabase
       .from('profiles')
       .select('username, free_tokens, paid_tokens, pity_counter, pity_bonus_active')
       .eq('id', loggedUser.id)
       .maybeSingle();
 
-    if (profile) {
-      setUsername(profile.username as string | null);
-      setFreeTokens(profile.free_tokens as number);
-      setPaidTokens(profile.paid_tokens as number);
-      setPityCounter(profile.pity_counter as number);
-      setPityBonusActive(profile.pity_bonus_active as boolean);
+    if (profileError) {
+      console.error('Failed to fetch profile:', profileError);
+      setStatusText(`Gagal memuat profil: ${profileError.message}`);
+      return;
+    }
 
-      if (!profile.username) {
-        setUsernameRequired(true);
-        setUsernameModalOpen(true);
-      } else if ((claimData as { claimed?: boolean } | null)?.claimed) {
+    let profile = existingProfile;
+
+    if (!profile) {
+      const todayWib = getTodayWibDateString();
+      const { data: inserted, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: loggedUser.id,
+          email: loggedUser.email ?? null,
+          avatar_url:
+            (loggedUser.user_metadata?.avatar_url as string | undefined) ||
+            (loggedUser.user_metadata?.picture as string | undefined) ||
+            null,
+          free_tokens: 3,
+          paid_tokens: 0,
+          last_daily_claim_date: todayWib,
+        })
+        .select('username, free_tokens, paid_tokens, pity_counter, pity_bonus_active')
+        .maybeSingle();
+
+      if (insertError) {
+        console.error('Failed to create profile:', insertError);
+        setStatusText(`Gagal membuat profil: ${insertError.message}`);
+        return;
+      }
+      profile = inserted;
+    }
+
+    // 2. Claim daily +3 free tokens if new GMT+7 day
+    const { data: claimData } = await supabase.rpc('claim_daily_tokens');
+    const claimedPayload = claimData as {
+      claimed?: boolean;
+      free_tokens?: number;
+      paid_tokens?: number;
+    } | null;
+
+    const currentUsername = (profile?.username as string | null) ?? null;
+    setUsername(currentUsername);
+    setFreeTokens(claimedPayload?.free_tokens ?? (profile?.free_tokens as number) ?? 3);
+    setPaidTokens(claimedPayload?.paid_tokens ?? (profile?.paid_tokens as number) ?? 0);
+    setPityCounter((profile?.pity_counter as number) ?? 0);
+    setPityBonusActive((profile?.pity_bonus_active as boolean) ?? false);
+
+    // Always force username popup if user hasn't set a username yet (including after refresh)
+    if (!currentUsername) {
+      setUsernameModalOpen(true);
+      setStatusText('Silakan buat username permanen terlebih dahulu.');
+    } else {
+      setUsernameModalOpen(false);
+      if (claimedPayload?.claimed) {
         soundEngine.playCoin();
-        setStatusText('Selamat datang! +3 Token Gratis harian (GMT+7) telah ditambahkan!');
+        setStatusText(
+          `Selamat datang @${currentUsername}! +3 CCoin Free harian (GMT+7) telah ditambahkan!`
+        );
+      } else {
+        setStatusText(
+          `Halo @${currentUsername}! Arahkan capit dengan WASD / Panah, lalu tekan SPASI!`
+        );
       }
     }
 
-    // 3. Fetch user collectibles
+    // 3. Fetch user collectibles (with capit vs trade provenance)
     const { data: rows } = await supabase
       .from('user_collectibles')
-      .select('series_id, collectible_id, quantity')
+      .select(
+        'series_id, collectible_id, quantity, capit_quantity, trade_quantity, traded_from_usernames'
+      )
       .eq('user_id', loggedUser.id);
 
     if (rows) {
-      const map: Record<string, number> = {};
+      const map: Record<string, OwnedCollectibleMeta> = {};
       rows.forEach((r) => {
-        map[`${r.series_id}:${r.collectible_id}`] = r.quantity as number;
+        map[`${r.series_id}:${r.collectible_id}`] = {
+          quantity: (r.quantity as number) ?? 0,
+          capitQuantity: (r.capit_quantity as number) ?? 0,
+          tradeQuantity: (r.trade_quantity as number) ?? 0,
+          tradedFromUsernames: (r.traded_from_usernames as string[]) ?? [],
+        };
       });
-      setOwnedCounts(map);
+      setOwnedItems(map);
     }
   }, []);
 
@@ -250,7 +308,8 @@ export function App() {
       authModalOpen ||
       usernameModalOpen ||
       saweriaModalOpen ||
-      pityModalOpen
+      pityModalOpen ||
+      leaderboardOpen
     ) {
       return;
     }
@@ -311,6 +370,7 @@ export function App() {
     clawPhase,
     freeTokens,
     guestTokens,
+    leaderboardOpen,
     paidTokens,
     pendingReveal,
     pityBonusActive,
@@ -382,11 +442,21 @@ export function App() {
           }
         }
 
-        // Save collectible ONLY for logged-in users (Rule #2: guest prizes are never saved)
+        // Save collectible ONLY for logged-in users (Rule #2 & #28: mark as pure capit result)
         if (user && rolledPrize.kind !== 'zonk') {
           const key = `${activeSeriesId}:${rolledPrize.id}`;
-          setOwnedCounts((curr) => {
-            const nextQty = (curr[key] ?? 0) + 1;
+          setOwnedItems((curr) => {
+            const prevMeta = curr[key] ?? {
+              quantity: 0,
+              capitQuantity: 0,
+              tradeQuantity: 0,
+              tradedFromUsernames: [],
+            };
+            const nextMeta: OwnedCollectibleMeta = {
+              ...prevMeta,
+              quantity: prevMeta.quantity + 1,
+              capitQuantity: prevMeta.capitQuantity + 1,
+            };
             if (supabase) {
               supabase
                 .from('user_collectibles')
@@ -396,14 +466,17 @@ export function App() {
                     series_id: activeSeriesId,
                     collectible_id: rolledPrize.id,
                     tier: rolledPrize.tier,
-                    quantity: nextQty,
+                    quantity: nextMeta.quantity,
+                    capit_quantity: nextMeta.capitQuantity,
+                    trade_quantity: nextMeta.tradeQuantity,
+                    traded_from_usernames: nextMeta.tradedFromUsernames,
                     last_obtained_at: new Date().toISOString(),
                   },
                   { onConflict: 'user_id,series_id,collectible_id' }
                 )
                 .then(() => {});
             }
-            return { ...curr, [key]: nextQty };
+            return { ...curr, [key]: nextMeta };
           });
         }
 
@@ -479,34 +552,42 @@ export function App() {
 
   const handleSaveUsername = async (newUsername: string): Promise<string | null> => {
     if (!supabase || !user) return 'Belum login';
-    const { data, error } = await supabase.rpc('set_username', { new_username: newUsername });
+    const cleaned = newUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const { data, error } = await supabase.rpc('set_username', { new_username: cleaned });
     if (error) {
       if (error.message.includes('duplicate') || error.message.includes('unique')) {
         return 'Username sudah dipakai pemain lain, coba yang lain.';
       }
       return error.message;
     }
-    setUsername((data as string) || newUsername);
-    setUsernameRequired(false);
-    setStatusText(`Username "${newUsername}" berhasil disimpan!`);
+    setUsername((data as string) || cleaned);
+    setUsernameModalOpen(false);
+    setStatusText(`Username "${cleaned}" berhasil disimpan!`);
     return null;
   };
 
-  const handleRedeemClawme = async (seriesId: string) => {
+  const handleRedeemCapit = async (seriesId: string) => {
     if (!supabase || !user) return;
-    const { data, error } = await supabase.rpc('redeem_clawme', { target_series: seriesId });
+    const { data, error } = await supabase.rpc('redeem_capit', { target_series: seriesId });
     if (!error && typeof data === 'number') {
       soundEngine.playCoin();
       setFreeTokens(data);
-      setOwnedCounts((curr) => {
+      setOwnedItems((curr) => {
         const copy = { ...curr };
-        (['C', 'L', 'A', 'W', 'M', 'E'] as const).forEach((ltr) => {
+        (['C', 'A', 'P', 'I', 'T'] as const).forEach((ltr) => {
           const k = `${seriesId}:letter-${ltr}`;
-          copy[k] = Math.max(0, (copy[k] ?? 1) - 1);
+          const prevMeta = copy[k];
+          if (prevMeta) {
+            copy[k] = {
+              ...prevMeta,
+              quantity: Math.max(0, prevMeta.quantity - 1),
+              capitQuantity: Math.max(0, prevMeta.capitQuantity - 1),
+            };
+          }
         });
         return copy;
       });
-      setStatusText('Berhasil menukar CLAWME dengan +5 Token Gratis!');
+      setStatusText('Berhasil menukar CAPIT dengan +5 CCoin Free!');
     }
   };
 
@@ -539,11 +620,13 @@ export function App() {
     !authModalOpen &&
     !usernameModalOpen &&
     !saweriaModalOpen &&
-    !pityModalOpen;
+    !pityModalOpen &&
+    !leaderboardOpen;
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-[#090714]">
       <ClawMachineScene
+        seriesId={activeSeriesId}
         capsules={capsules}
         inputVector={inputVector}
         dropSignal={dropSignal}
@@ -611,14 +694,28 @@ export function App() {
             </div>
             {user && (
               <div
-                className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold backdrop-blur-md ${
+                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-md ${
                   pityBonusActive
-                    ? 'border-amber-400/50 bg-amber-500/20 text-amber-200'
-                    : 'border-white/10 bg-slate-950/65 text-slate-300'
+                    ? 'border-amber-400/70 bg-amber-500/25 text-amber-200 shadow-[0_0_16px_rgba(251,191,36,0.35)]'
+                    : 'border-white/10 bg-slate-950/70 text-slate-300'
                 }`}
               >
-                <Flame className="h-3.5 w-3.5 text-amber-400" />
-                <span>{pityBonusActive ? 'PITY 90%!' : `Pity ${pityCounter}/10`}</span>
+                <Flame
+                  className={`h-3.5 w-3.5 ${
+                    pityBonusActive ? 'animate-pulse text-amber-300' : 'text-amber-400'
+                  }`}
+                />
+                <span>{pityBonusActive ? 'PITY 90% AKTIF!' : `Pity ${pityCounter}/${pityThreshold}`}</span>
+                {!pityBonusActive && (
+                  <div className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-white/10 sm:block">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-400 to-pink-500 transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, (pityCounter / Math.max(1, pityThreshold)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -628,17 +725,16 @@ export function App() {
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           {user ? (
             <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-slate-950/75 px-3 py-1.5 backdrop-blur-md">
-              <button
-                onClick={() => {
-                  setUsernameRequired(false);
-                  setUsernameModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:underline"
-                title="Ubah Username"
-              >
-                <span>@{username || 'set_username'}</span>
-                <Edit3 className="h-3 w-3 opacity-75" />
-              </button>
+              {username ? (
+                <span className="text-xs font-semibold text-emerald-200">@{username}</span>
+              ) : (
+                <button
+                  onClick={() => setUsernameModalOpen(true)}
+                  className="text-xs font-semibold text-amber-300 underline"
+                >
+                  Buat Username
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 title="Keluar"
@@ -702,6 +798,15 @@ export function App() {
           </button>
 
           <button
+            onClick={() => setLeaderboardOpen(true)}
+            title="Leaderboard"
+            className="flex items-center gap-1.5 rounded-2xl border border-amber-400/30 bg-slate-950/75 px-3 py-2 text-sm font-semibold text-amber-200 backdrop-blur-md transition hover:bg-amber-500/20 active:scale-95"
+          >
+            <Crown className="h-4 w-4 text-amber-300" />
+            <span className="hidden sm:inline">Rank</span>
+          </button>
+
+          <button
             onClick={() => {
               setCapsules(generateInitialCapsules(18, activeSeriesId));
               setStatusText('Kapsul di dalam mesin telah diacak ulang!');
@@ -731,7 +836,7 @@ export function App() {
 
       {/* Bottom Arcade Controls (Mobile Touch Optimized) */}
       <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex items-end justify-center px-3 sm:bottom-4 sm:px-4">
-        <div className="pointer-events-auto touch-none flex items-center gap-4 rounded-3xl border border-white/15 bg-slate-950/85 px-4 py-2.5 shadow-2xl backdrop-blur-md sm:gap-5 sm:px-5 sm:py-3">
+        <div className="pointer-events-auto touch-none flex items-center gap-4 rounded-3xl border border-purple-400/30 bg-gradient-to-b from-slate-900/90 to-slate-950/95 px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.65),0_0_25px_rgba(168,85,247,0.2)] backdrop-blur-md sm:gap-6 sm:px-6 sm:py-3.5">
           <div className="grid grid-cols-3 gap-1.5">
             <div />
             <button
@@ -747,7 +852,7 @@ export function App() {
                 padRef.current = { x: 0, z: 0 };
                 recomputeInput();
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-cyan-500/30 active:scale-90"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/30 border-b-4 border-b-slate-950 bg-slate-800/90 text-cyan-200 shadow-inner transition hover:bg-cyan-500/30 active:translate-y-0.5 active:border-b-0 sm:h-10 sm:w-10"
               aria-label="Maju"
             >
               <ArrowUp className="h-4 w-4" />
@@ -767,7 +872,7 @@ export function App() {
                 padRef.current = { x: 0, z: 0 };
                 recomputeInput();
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-cyan-500/30 active:scale-90"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/30 border-b-4 border-b-slate-950 bg-slate-800/90 text-cyan-200 shadow-inner transition hover:bg-cyan-500/30 active:translate-y-0.5 active:border-b-0 sm:h-10 sm:w-10"
               aria-label="Kiri"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -785,7 +890,7 @@ export function App() {
                 padRef.current = { x: 0, z: 0 };
                 recomputeInput();
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-cyan-500/30 active:scale-90"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/30 border-b-4 border-b-slate-950 bg-slate-800/90 text-cyan-200 shadow-inner transition hover:bg-cyan-500/30 active:translate-y-0.5 active:border-b-0 sm:h-10 sm:w-10"
               aria-label="Mundur"
             >
               <ArrowDown className="h-4 w-4" />
@@ -803,7 +908,7 @@ export function App() {
                 padRef.current = { x: 0, z: 0 };
                 recomputeInput();
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-cyan-500/30 active:scale-90"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/30 border-b-4 border-b-slate-950 bg-slate-800/90 text-cyan-200 shadow-inner transition hover:bg-cyan-500/30 active:translate-y-0.5 active:border-b-0 sm:h-10 sm:w-10"
               aria-label="Kanan"
             >
               <ArrowRight className="h-4 w-4" />
@@ -813,7 +918,7 @@ export function App() {
           <button
             onClick={triggerDrop}
             disabled={clawPhase !== 'idle'}
-            className="font-display flex h-16 min-w-32 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 px-6 text-lg font-bold tracking-wider text-white shadow-lg shadow-pink-500/35 transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+            className="font-display flex h-16 min-w-32 items-center justify-center rounded-2xl border-b-4 border-rose-800 bg-gradient-to-b from-pink-400 via-pink-500 to-rose-600 px-6 text-lg font-bold tracking-wider text-white shadow-[0_0_28px_rgba(236,72,153,0.5)] transition hover:brightness-110 active:translate-y-1 active:border-b-0 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {clawPhase === 'idle' ? 'CAPIT!' : 'PROSES...'}
           </button>
@@ -831,21 +936,22 @@ export function App() {
       <AlbumModal
         open={albumOpen}
         activeSeriesId={activeSeriesId}
-        ownedCounts={ownedCounts}
+        ownedItems={ownedItems}
         isLoggedIn={Boolean(user)}
-        onRedeemClawme={handleRedeemClawme}
+        onRedeemCapit={handleRedeemCapit}
         onClose={() => setAlbumOpen(false)}
+      />
+
+      <LeaderboardModal
+        open={leaderboardOpen}
+        activeSeriesId={activeSeriesId}
+        currentUsername={username}
+        onClose={() => setLeaderboardOpen(false)}
       />
 
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-      <UsernameModal
-        open={usernameModalOpen}
-        required={usernameRequired}
-        currentUsername={username}
-        onSave={handleSaveUsername}
-        onClose={() => setUsernameModalOpen(false)}
-      />
+      <UsernameModal open={usernameModalOpen} onSave={handleSaveUsername} />
 
       <SaweriaModal
         open={saweriaModalOpen}

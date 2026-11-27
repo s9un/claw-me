@@ -15,11 +15,18 @@ export interface CollectibleItem {
   name: string;
   tier: Tier;
   kind: CollectibleKind;
-  letterValue?: 'C' | 'L' | 'A' | 'W' | 'M' | 'E';
+  letterValue?: 'C' | 'A' | 'P' | 'I' | 'T';
   emoji: string;
   accentColor: string;
   description: string;
   points: number;
+}
+
+export interface OwnedCollectibleMeta {
+  quantity: number;
+  capitQuantity: number;
+  tradeQuantity: number;
+  tradedFromUsernames: string[];
 }
 
 export interface CapsuleEntity {
@@ -35,7 +42,7 @@ export const SERIES_LIST: SeriesInfo[] = [
   {
     id: 'first-edition',
     name: 'First Edition',
-    description: 'Seri perdana: 90 Collectibles ME unik + huruf CLAWME!',
+    description: 'Seri perdana: 90 Collectibles ME unik + huruf CAPIT!',
     isActive: true,
     badge: 'AKTIF',
   },
@@ -111,7 +118,7 @@ export const TIER_CONFIG: Record<
   },
 };
 
-export const CLAWME_LETTERS: ('C' | 'L' | 'A' | 'W' | 'M' | 'E')[] = ['C', 'L', 'A', 'W', 'M', 'E'];
+export const CAPIT_LETTERS: ('C' | 'A' | 'P' | 'I' | 'T')[] = ['C', 'A', 'P', 'I', 'T'];
 
 const TIER_B_ANIMALS: [string, string][] = [
   ['Mochi Cat', '🐱'], ['Pudding Shiba', '🐶'], ['Boba Bunny', '🐰'], ['Honey Hamster', '🐹'],
@@ -166,7 +173,7 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
     points: 0,
   });
 
-  CLAWME_LETTERS.forEach((letter) => {
+  CAPIT_LETTERS.forEach((letter) => {
     items.push({
       id: `letter-${letter}`,
       seriesId: 'first-edition',
@@ -176,7 +183,7 @@ function buildFirstEditionCollectibles(): CollectibleItem[] {
       letterValue: letter,
       emoji: letter,
       accentColor: '#38bdf8',
-      description: `Sticker huruf ${letter}. Kumpulkan C-L-A-W-M-E lengkap untuk ditukar 5 token gratis!`,
+      description: `Sticker huruf ${letter}. Kumpulkan C-A-P-I-T lengkap untuk ditukar 5 CCoin Free!`,
       points: 25,
     });
   });

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Gift, Sparkles, Trophy, X } from 'lucide-react';
 import {
-  CLAWME_LETTERS,
+  CAPIT_LETTERS,
   getCollectiblesBySeries,
   SERIES_LIST,
   TIER_CONFIG,
+  type OwnedCollectibleMeta,
   type Tier,
 } from '../data/collectibles';
 import { CollectibleArtwork } from './CollectibleArtwork';
@@ -12,18 +13,18 @@ import { CollectibleArtwork } from './CollectibleArtwork';
 interface AlbumModalProps {
   open: boolean;
   activeSeriesId: string;
-  ownedCounts: Record<string, number>; // key: `${seriesId}:${collectibleId}`
+  ownedItems: Record<string, OwnedCollectibleMeta>; // key: `${seriesId}:${collectibleId}`
   isLoggedIn: boolean;
-  onRedeemClawme: (seriesId: string) => Promise<void>;
+  onRedeemCapit: (seriesId: string) => Promise<void>;
   onClose: () => void;
 }
 
 export function AlbumModal({
   open,
   activeSeriesId,
-  ownedCounts,
+  ownedItems,
   isLoggedIn,
-  onRedeemClawme,
+  onRedeemCapit,
   onClose,
 }: AlbumModalProps) {
   const [selectedSeries, setSelectedSeries] = useState(activeSeriesId);
@@ -39,20 +40,22 @@ export function AlbumModal({
   }, [animalItems, tierFilter]);
 
   const unlockedCount = useMemo(
-    () => animalItems.filter((i) => (ownedCounts[`${selectedSeries}:${i.id}`] ?? 0) > 0).length,
-    [animalItems, ownedCounts, selectedSeries]
+    () =>
+      animalItems.filter((i) => (ownedItems[`${selectedSeries}:${i.id}`]?.quantity ?? 0) > 0)
+        .length,
+    [animalItems, ownedItems, selectedSeries]
   );
 
-  const canRedeemClawme = CLAWME_LETTERS.every(
-    (ltr) => (ownedCounts[`${selectedSeries}:letter-${ltr}`] ?? 0) >= 1
+  const canRedeemCapit = CAPIT_LETTERS.every(
+    (ltr) => (ownedItems[`${selectedSeries}:letter-${ltr}`]?.quantity ?? 0) >= 1
   );
 
   if (!open) return null;
 
   const handleRedeem = async () => {
-    if (!canRedeemClawme || redeeming) return;
+    if (!canRedeemCapit || redeeming) return;
     setRedeeming(true);
-    await onRedeemClawme(selectedSeries);
+    await onRedeemCapit(selectedSeries);
     setRedeeming(false);
   };
 
@@ -102,21 +105,21 @@ export function AlbumModal({
           </div>
         </div>
 
-        {/* CLAWME Letter Redemption Bar */}
+        {/* CAPIT Letter Redemption Bar */}
         <div className="border-b border-white/10 bg-slate-900/60 px-6 py-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
-                <Sparkles className="h-3.5 w-3.5" /> Tukar Huruf CLAWME → +5 Token Gratis
+                <Sparkles className="h-3.5 w-3.5" /> Tukar Huruf CAPIT → +5 CCoin Free
               </p>
               <p className="text-[11px] text-slate-400">
-                Kumpulkan minimal 1x untuk setiap huruf C-L-A-W-M-E dari Tier C.
+                Kumpulkan minimal 1x untuk setiap huruf C-A-P-I-T dari Tier C.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {CLAWME_LETTERS.map((ltr) => {
-                const qty = ownedCounts[`${selectedSeries}:letter-${ltr}`] ?? 0;
+              {CAPIT_LETTERS.map((ltr) => {
+                const qty = ownedItems[`${selectedSeries}:letter-${ltr}`]?.quantity ?? 0;
                 return (
                   <div
                     key={ltr}
@@ -138,11 +141,11 @@ export function AlbumModal({
 
               <button
                 onClick={handleRedeem}
-                disabled={!canRedeemClawme || redeeming || !isLoggedIn}
+                disabled={!canRedeemCapit || redeeming || !isLoggedIn}
                 className="ml-2 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Gift className="h-3.5 w-3.5" />
-                {redeeming ? 'Menukar...' : 'Tukar 5 Token'}
+                {redeeming ? 'Menukar...' : 'Tukar 5 CCoin'}
               </button>
             </div>
           </div>
@@ -172,7 +175,7 @@ export function AlbumModal({
           })}
         </div>
 
-        {/* Grid of Animals (Revealed vs Silhouette) */}
+        {/* Grid of Collectibles ME (Revealed vs Silhouette) */}
         <div className="flex-1 overflow-y-auto p-6">
           {animalItems.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
@@ -182,7 +185,8 @@ export function AlbumModal({
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
               {filteredAnimals.map((item) => {
-                const qty = ownedCounts[`${selectedSeries}:${item.id}`] ?? 0;
+                const meta = ownedItems[`${selectedSeries}:${item.id}`];
+                const qty = meta?.quantity ?? 0;
                 const unlocked = qty > 0;
                 const cfg = TIER_CONFIG[item.tier];
 
@@ -212,6 +216,16 @@ export function AlbumModal({
                     <p className="mt-1 line-clamp-1 text-xs font-semibold text-white">
                       {unlocked ? item.name : '???'}
                     </p>
+
+                    {unlocked && (
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        {meta.tradeQuantity > 0 && meta.capitQuantity === 0
+                          ? `Trade${meta.tradedFromUsernames[0] ? ` @${meta.tradedFromUsernames[0]}` : ''}`
+                          : meta.tradeQuantity > 0
+                            ? `Capit ${meta.capitQuantity} • Trade ${meta.tradeQuantity}`
+                            : 'Hasil Capit'}
+                      </p>
+                    )}
                   </div>
                 );
               })}

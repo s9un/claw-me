@@ -1,32 +1,29 @@
 import { useState } from 'react';
-import { UserCheck, X } from 'lucide-react';
+import { UserCheck } from 'lucide-react';
 
 interface UsernameModalProps {
   open: boolean;
-  required: boolean;
-  currentUsername: string | null;
   onSave: (username: string) => Promise<string | null>;
-  onClose: () => void;
 }
 
-export function UsernameModal({
-  open,
-  required,
-  currentUsername,
-  onSave,
-  onClose,
-}: UsernameModalProps) {
-  const [value, setValue] = useState(currentUsername ?? '');
+export function UsernameModal({ open, onSave }: UsernameModalProps) {
+  const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
 
+  const handleChange = (raw: string) => {
+    // Force lowercase and strip any non-alphanumeric characters (no spaces/punctuation)
+    const sanitized = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+    setValue(sanitized);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned = value.trim();
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(cleaned)) {
-      setError('Username harus 3–20 karakter (hanya huruf, angka, dan underscore _).');
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!/^[a-z0-9]{3,20}$/.test(cleaned)) {
+      setError('Username harus 3–20 karakter (hanya huruf kecil a-z dan angka 0-9).');
       return;
     }
 
@@ -36,35 +33,22 @@ export function UsernameModal({
     setSaving(false);
     if (err) {
       setError(err);
-    } else {
-      onClose();
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
       <div className="relative w-full max-w-sm rounded-3xl border border-white/15 bg-slate-900/95 p-6 shadow-2xl">
-        {!required && (
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 rounded-full bg-white/10 p-1.5 text-slate-300 transition hover:bg-white/20 hover:text-white"
-            aria-label="Tutup"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-
         <div className="flex flex-col items-center text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/20 text-cyan-300">
             <UserCheck className="h-6 w-6" />
           </div>
-          <h2 className="font-display mt-3 text-xl font-bold text-white">
-            {required ? 'Buat Username Baru' : 'Ubah Username'}
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            {required
-              ? 'Login pertama berhasil! Buat username unik untuk menyimpan koleksi & menerima top-up Saweria.'
-              : 'Masukkan username baru Anda (3–20 karakter, huruf/angka/_).'}
+          <h2 className="font-display mt-3 text-xl font-bold text-white">Buat Username Baru</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            Gunakan huruf kecil &amp; angka saja (3–20 karakter, tanpa spasi atau tanda baca).{' '}
+            <strong className="text-amber-300">
+              Username bersifat permanen dan tidak dapat diubah setelah disimpan.
+            </strong>
           </p>
         </div>
 
@@ -72,11 +56,14 @@ export function UsernameModal({
           <input
             type="text"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="contoh: claw_master99"
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder="contoh: capitmaster99"
             maxLength={20}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             autoFocus
-            className="w-full rounded-2xl border border-white/15 bg-slate-950 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+            className="w-full rounded-2xl border border-white/15 bg-slate-950 px-4 py-3 text-sm lowercase text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
           />
 
           {error && (

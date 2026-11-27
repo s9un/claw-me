@@ -62,7 +62,6 @@ export function ClawRig({
   const trolleyRef = useRef<THREE.Group>(null);
   const cableRef = useRef<THREE.Mesh>(null);
   const clawHeadRef = useRef<THREE.Group>(null);
-  const targetRingRef = useRef<THREE.Mesh>(null);
   const prongRefs = useRef<(THREE.Group | null)[]>([null, null, null]);
   const clawBodyRef = useRef<RapierRigidBody | null>(null);
 
@@ -264,10 +263,6 @@ export function ClawRig({
       cableRef.current.position.set(pos.x, pos.y + cableLen / 2, pos.z);
       cableRef.current.scale.set(1, cableLen, 1);
     }
-    if (targetRingRef.current) {
-      targetRingRef.current.position.set(pos.x, 0.015, pos.z);
-      targetRingRef.current.visible = phase === 'idle';
-    }
 
     prongRefs.current.forEach((prong) => {
       if (prong) {
@@ -303,11 +298,6 @@ export function ClawRig({
       <mesh ref={cableRef} position={[0, 3.0, 0]}>
         <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
         <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.2} />
-      </mesh>
-
-      <mesh ref={targetRingRef} position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.2, 0.26, 28]} />
-        <meshBasicMaterial color="#22d3ee" transparent opacity={0.65} />
       </mesh>
 
       <RigidBody ref={clawBodyRef} type="kinematicPosition" colliders="ball" position={[0, BOUNDS.topY, 0]}>

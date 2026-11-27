@@ -102,6 +102,28 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
                 {errorMsg}
               </p>
             )}
+
+            <p className="pt-2 text-center text-[11px] leading-relaxed text-slate-400">
+              Dengan masuk, Anda menyetujui{' '}
+              <a
+                href="./terms.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-300 underline hover:text-cyan-200"
+              >
+                Syarat &amp; Ketentuan
+              </a>{' '}
+              dan{' '}
+              <a
+                href="./privacy.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-300 underline hover:text-cyan-200"
+              >
+                Kebijakan Privasi
+              </a>
+              .
+            </p>
           </div>
         )}
       </div>

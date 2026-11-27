@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
+import { ContactShadows, Environment, OrbitControls, Sparkles } from '@react-three/drei';
 import { Physics, type RapierRigidBody } from '@react-three/rapier';
 import type { CapsuleEntity } from '../data/collectibles';
 import { Cabinet } from './Cabinet';
@@ -8,6 +8,7 @@ import { CapsuleItem } from './CapsuleItem';
 import { ClawRig, type ClawPhase } from './ClawRig';
 
 interface ClawMachineSceneProps {
+  seriesId: string;
   capsules: CapsuleEntity[];
   inputVector: { x: number; z: number };
   dropSignal: number;
@@ -20,6 +21,7 @@ interface ClawMachineSceneProps {
 }
 
 export function ClawMachineScene({
+  seriesId,
   capsules,
   inputVector,
   dropSignal,
@@ -80,6 +82,7 @@ export function ClawMachineScene({
 
         <Physics gravity={[0, -9.81, 0]}>
           <Cabinet
+            seriesId={seriesId}
             inputVector={inputVector}
             isDropping={isDropping}
             onCapsuleEnteredChute={onCapsuleWon}
@@ -100,7 +103,18 @@ export function ClawMachineScene({
           ))}
         </Physics>
 
-        <ContactShadows position={[0, -2.2, 0]} opacity={0.55} scale={12} blur={2.4} far={4} />
+        <ContactShadows position={[0, -2.2, 0]} opacity={0.6} scale={12} blur={2.4} far={4} />
+
+        {/* Subtle Neon Arcade Floor & Ambient Particles */}
+        <mesh position={[0, -2.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[6.5, 48]} />
+          <meshStandardMaterial color="#0e0a24" roughness={0.7} metalness={0.3} />
+        </mesh>
+        <mesh position={[0, -2.21, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[3.4, 3.55, 64]} />
+          <meshBasicMaterial color="#ec4899" transparent opacity={0.35} />
+        </mesh>
+        <Sparkles count={40} scale={[7, 5.5, 6]} size={2.2} speed={0.35} color="#a855f7" opacity={0.45} />
       </Suspense>
 
       <OrbitControls
