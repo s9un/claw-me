@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
   if (SAWERIA_STREAM_KEY) {
     const valid = await verifySaweriaSignature(rawBody, signature, SAWERIA_STREAM_KEY);
     if (!valid) {
+      console.error('Invalid Saweria signature. Header present:', Boolean(signature));
       return new Response(JSON.stringify({ error: 'Invalid Saweria signature' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
