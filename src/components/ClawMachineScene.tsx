@@ -2,7 +2,7 @@ import { Suspense, useCallback, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
 import { Physics, type RapierRigidBody } from '@react-three/rapier';
-import type { CapsuleEntity } from '../data/prizes';
+import type { CapsuleEntity } from '../data/collectibles';
 import { Cabinet } from './Cabinet';
 import { CapsuleItem } from './CapsuleItem';
 import { ClawRig, type ClawPhase } from './ClawRig';
@@ -13,6 +13,7 @@ interface ClawMachineSceneProps {
   dropSignal: number;
   canPlay: boolean;
   isDropping: boolean;
+  catchChance: number;
   onPhaseChange: (phase: ClawPhase) => void;
   onCapsuleWon: (uid: string) => void;
   onAttemptFinished: (grabbedSomething: boolean) => void;
@@ -24,6 +25,7 @@ export function ClawMachineScene({
   dropSignal,
   canPlay,
   isDropping,
+  catchChance,
   onPhaseChange,
   onCapsuleWon,
   onAttemptFinished,
@@ -48,7 +50,6 @@ export function ClawMachineScene({
       <color attach="background" args={['#090714']} />
       <fog attach="fog" args={['#090714', 11, 26]} />
 
-      {/* Lighting */}
       <ambientLight intensity={0.55} />
       <directionalLight
         position={[4, 8, 5]}
@@ -63,7 +64,6 @@ export function ClawMachineScene({
         shadow-camera-top={5}
         shadow-camera-bottom={-3}
       />
-      {/* Cabinet Interior Neon Lights */}
       <pointLight position={[0, 3.1, 0]} intensity={2.2} distance={7} color="#e0e7ff" />
       <pointLight position={[-1.5, 1.5, 0.5]} intensity={1.4} distance={5} color="#22d3ee" />
       <pointLight position={[1.5, 1.5, 0.5]} intensity={1.4} distance={5} color="#ec4899" />
@@ -82,6 +82,7 @@ export function ClawMachineScene({
             inputVector={inputVector}
             dropSignal={dropSignal}
             canPlay={canPlay}
+            catchChance={catchChance}
             capsuleBodies={capsuleBodies}
             onPhaseChange={onPhaseChange}
             onAttemptFinished={onAttemptFinished}

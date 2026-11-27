@@ -1,4 +1,4 @@
-import type { Rarity } from '../data/prizes';
+import type { Tier } from '../data/collectibles';
 
 class ArcadeSoundEngine {
   private ctx: AudioContext | null = null;
@@ -7,7 +7,9 @@ class ArcadeSoundEngine {
   private ensureCtx(): AudioContext | null {
     if (this.muted) return null;
     if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -80,15 +82,17 @@ class ArcadeSoundEngine {
     });
   }
 
-  playReveal(rarity: Rarity) {
-    if (rarity === 'legendary' || rarity === 'epic') {
+  playReveal(tier: Tier) {
+    if (tier === 'SSR' || tier === 'SS') {
       const fanfare = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98];
       fanfare.forEach((n, i) => {
         this.tone(n, 0.25, 'triangle', 0.13, i * 0.07);
       });
-    } else {
+    } else if (tier === 'A' || tier === 'B') {
       this.tone(587.33, 0.14, 'sine', 0.12, 0);
       this.tone(880, 0.26, 'triangle', 0.12, 0.09);
+    } else {
+      this.tone(330, 0.15, 'triangle', 0.08, 0, 260);
     }
   }
 }

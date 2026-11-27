@@ -17,6 +17,7 @@ interface ClawRigProps {
   inputVector: { x: number; z: number };
   dropSignal: number;
   canPlay: boolean;
+  catchChance: number; // e.g., 30 for guest, 10 for normal, 90 for pity
   capsuleBodies: React.MutableRefObject<Map<string, RapierRigidBody>>;
   onPhaseChange: (phase: ClawPhase) => void;
   onAttemptFinished: (grabbedSomething: boolean) => void;
@@ -29,6 +30,7 @@ const BOUNDS = {
   maxZ: 1.2,
   topY: 2.55,
   bottomY: 0.56,
+  slipY: 1.55,
   chuteX: -1.42,
   chuteZ: 1.08,
 };
@@ -37,6 +39,7 @@ export function ClawRig({
   inputVector,
   dropSignal,
   canPlay,
+  catchChance,
   capsuleBodies,
   onPhaseChange,
   onAttemptFinished,
@@ -45,16 +48,16 @@ export function ClawRig({
 
   const phaseRef = useRef<ClawPhase>('idle');
   const posRef = useRef(new THREE.Vector3(0, BOUNDS.topY, 0));
-  const prongAngleRef = useRef(0.55); // 0.55 = open, 0.08 = closed
+  const prongAngleRef = useRef(0.55);
   const timerRef = useRef(0);
   const lastDropSignalRef = useRef(dropSignal);
   const moveSoundCooldownRef = useRef(0);
 
   const grabbedUidRef = useRef<string | null>(null);
   const grabOffsetRef = useRef(new THREE.Vector3(0, -0.34, 0));
+  const willSlipRef = useRef(false);
   const attemptedGrabRef = useRef(false);
 
-  // Visual refs for smooth 60fps animation without React re-renders
   const bridgeRef = useRef<THREE.Group>(null);
   const trolleyRef = useRef<THREE.Group>(null);
   const cableRef = useRef<THREE.Mesh>(null);
@@ -75,11 +78,11 @@ export function ClawRig({
     const pos = posRef.current;
     const phase = phaseRef.current;
 
-    // Detect new drop button press
     if (dropSignal !== lastDropSignalRef.current) {
       lastDropSignalRef.current = dropSignal;
       if (phase === 'idle' && canPlay) {
         attemptedGrabRef.current = false;
+        willSlipRef.current = false;
         setPhase('dropping');
         soundEngine.playDrop();
       }
@@ -102,7 +105,6 @@ export function ClawRig({
     } else if (phase === 'dropping') {
       pos.y -= 1.65 * dt;
 
-      // Check if claw is right above a capsule so it stops at capsule height instead of crushing through
       let hitCapsuleY = BOUNDS.bottomY;
       capsuleBodies.current.forEach((body) => {
         const t = body.translation();
@@ -125,9 +127,8 @@ export function ClawRig({
       prongAngleRef.current = THREE.MathUtils.lerp(prongAngleRef.current, 0.1, dt * 10);
 
       if (timerRef.current >= 0.45) {
-        // Attempt to grab nearest capsule within claw pocket
         let bestUid: string | null = null;
-        let bestDist = 0.44; // grab radius
+        let bestDist = 0.44;
 
         capsuleBodies.current.forEach((body, uid) => {
           const t = body.translation();
@@ -143,7 +144,11 @@ export function ClawRig({
         if (bestUid) {
           const body = capsuleBodies.current.get(bestUid);
           if (body) {
-            // Switch capsule to kinematic so it travels smoothly inside the closed prongs
+            // Roll catch chance (30% guest, 10% normal, 90% pity)
+            const success = Math.random() * 100 < catchChance;
+            willSlipRef.current = !success;
+            attemptedGrabRef.current = success;
+
             body.setBodyType(rapier.RigidBodyType.KinematicPositionBased, true);
             const t = body.translation();
             grabOffsetRef.current.set(
@@ -152,7 +157,6 @@ export function ClawRig({
               THREE.MathUtils.clamp(t.z - pos.z, -0.08, 0.08)
             );
             grabbedUidRef.current = bestUid;
-            attemptedGrabRef.current = true;
             setIsGrabbingLight(true);
           }
         }
@@ -160,9 +164,34 @@ export function ClawRig({
       }
     } else if (phase === 'lifting') {
       pos.y += 1.45 * dt;
+
+      // Simulate realistic claw slip mid-air if catch roll failed
+      if (willSlipRef.current && grabbedUidRef.current && pos.y >= BOUNDS.slipY) {
+        const body = capsuleBodies.current.get(grabbedUidRef.current);
+        if (body) {
+          body.setBodyType(rapier.RigidBodyType.Dynamic, true);
+          body.setLinvel(
+            { x: (Math.random() - 0.5) * 0.5, y: -0.6, z: (Math.random() - 0.5) * 0.5 },
+            true
+          );
+          body.wakeUp();
+        }
+        grabbedUidRef.current = null;
+        willSlipRef.current = false;
+        setIsGrabbingLight(false);
+        prongAngleRef.current = 0.45;
+        soundEngine.playEmpty();
+      }
+
       if (pos.y >= BOUNDS.topY) {
         pos.y = BOUNDS.topY;
-        setPhase('returning');
+        if (grabbedUidRef.current) {
+          setPhase('returning');
+        } else {
+          timerRef.current = 0;
+          setPhase('cooldown');
+          onAttemptFinished(false);
+        }
       }
     } else if (phase === 'returning') {
       const targetX = BOUNDS.chuteX;
@@ -211,7 +240,6 @@ export function ClawRig({
       }
     }
 
-    // Carry grabbed capsule smoothly
     if (grabbedUidRef.current) {
       const body = capsuleBodies.current.get(grabbedUidRef.current);
       if (body) {
@@ -223,21 +251,13 @@ export function ClawRig({
       }
     }
 
-    // Update kinematic collider for claw head
     if (clawBodyRef.current) {
       clawBodyRef.current.setNextKinematicTranslation({ x: pos.x, y: pos.y, z: pos.z });
     }
 
-    // Update 3D gantry & claw visuals
-    if (bridgeRef.current) {
-      bridgeRef.current.position.z = pos.z;
-    }
-    if (trolleyRef.current) {
-      trolleyRef.current.position.x = pos.x;
-    }
-    if (clawHeadRef.current) {
-      clawHeadRef.current.position.set(pos.x, pos.y, pos.z);
-    }
+    if (bridgeRef.current) bridgeRef.current.position.z = pos.z;
+    if (trolleyRef.current) trolleyRef.current.position.x = pos.x;
+    if (clawHeadRef.current) clawHeadRef.current.position.set(pos.x, pos.y, pos.z);
     if (cableRef.current) {
       const railY = 3.45;
       const cableLen = Math.max(0.1, railY - pos.y);
@@ -249,7 +269,6 @@ export function ClawRig({
       targetRingRef.current.visible = phase === 'idle';
     }
 
-    // Animate 3 articulated prongs
     prongRefs.current.forEach((prong) => {
       if (prong) {
         prong.rotation.z = prongAngleRef.current;
@@ -259,7 +278,6 @@ export function ClawRig({
 
   return (
     <group>
-      {/* Overhead Gantry Side Rails */}
       <mesh position={[-1.85, 3.45, 0]}>
         <boxGeometry args={[0.08, 0.08, 3.1]} />
         <meshStandardMaterial color="#64748b" metalness={0.85} roughness={0.25} />
@@ -269,13 +287,11 @@ export function ClawRig({
         <meshStandardMaterial color="#64748b" metalness={0.85} roughness={0.25} />
       </mesh>
 
-      {/* Moving Z-Bridge */}
       <group ref={bridgeRef} position={[0, 3.45, 0]}>
         <mesh>
           <boxGeometry args={[3.75, 0.09, 0.1]} />
           <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.2} />
         </mesh>
-        {/* Moving X-Trolley */}
         <group ref={trolleyRef} position={[0, -0.05, 0]}>
           <mesh>
             <boxGeometry args={[0.32, 0.16, 0.24]} />
@@ -284,28 +300,23 @@ export function ClawRig({
         </group>
       </group>
 
-      {/* Telescoping Cable */}
       <mesh ref={cableRef} position={[0, 3.0, 0]}>
         <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
         <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.2} />
       </mesh>
 
-      {/* Floor Target Aim Ring */}
       <mesh ref={targetRingRef} position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.2, 0.26, 28]} />
         <meshBasicMaterial color="#22d3ee" transparent opacity={0.65} />
       </mesh>
 
-      {/* Kinematic Physics Body for Claw Head */}
       <RigidBody ref={clawBodyRef} type="kinematicPosition" colliders="ball" position={[0, BOUNDS.topY, 0]}>
         <mesh visible={false}>
           <sphereGeometry args={[0.14]} />
         </mesh>
       </RigidBody>
 
-      {/* Visual 3-Prong Claw Head */}
       <group ref={clawHeadRef} position={[0, BOUNDS.topY, 0]}>
-        {/* Hub */}
         <mesh castShadow>
           <cylinderGeometry args={[0.14, 0.18, 0.2, 16]} />
           <meshStandardMaterial
@@ -321,7 +332,6 @@ export function ClawRig({
           <meshStandardMaterial color="#ec4899" emissive="#ec4899" emissiveIntensity={0.7} />
         </mesh>
 
-        {/* 3 Articulated Prongs */}
         {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((yaw, i) => (
           <group key={i} rotation={[0, yaw, 0]}>
             <group
@@ -331,12 +341,10 @@ export function ClawRig({
               position={[0.13, -0.06, 0]}
               rotation={[0, 0, 0.55]}
             >
-              {/* Upper arm */}
               <mesh castShadow position={[0.08, -0.14, 0]} rotation={[0, 0, 0.45]}>
                 <boxGeometry args={[0.045, 0.3, 0.05]} />
                 <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.2} />
               </mesh>
-              {/* Lower curved tip */}
               <mesh castShadow position={[0.05, -0.34, 0]} rotation={[0, 0, -0.5]}>
                 <boxGeometry args={[0.04, 0.24, 0.045]} />
                 <meshStandardMaterial color="#22d3ee" metalness={0.6} roughness={0.25} />

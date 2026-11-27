@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { BallCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
-import type { CapsuleEntity } from '../data/prizes';
+import type { CapsuleEntity } from '../data/collectibles';
 
 interface CapsuleItemProps {
   capsule: CapsuleEntity;
@@ -9,8 +9,7 @@ interface CapsuleItemProps {
 
 export function CapsuleItem({ capsule, registerBody }: CapsuleItemProps) {
   const bodyRef = useRef<RapierRigidBody | null>(null);
-  const isLegendary = capsule.prize.rarity === 'legendary';
-  const isEpic = capsule.prize.rarity === 'epic';
+  const isGolden = Boolean(capsule.isGolden);
 
   useEffect(() => {
     registerBody(capsule.uid, bodyRef.current);
@@ -38,12 +37,12 @@ export function CapsuleItem({ capsule, registerBody }: CapsuleItemProps) {
           <sphereGeometry args={[0.235, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshPhysicalMaterial
             color={capsule.shellColor}
-            roughness={isLegendary ? 0.15 : 0.22}
-            metalness={isLegendary ? 0.55 : 0.1}
+            roughness={isGolden ? 0.15 : 0.22}
+            metalness={isGolden ? 0.55 : 0.1}
             clearcoat={0.9}
             clearcoatRoughness={0.1}
-            emissive={isLegendary || isEpic ? capsule.shellColor : '#000000'}
-            emissiveIntensity={isLegendary ? 0.35 : isEpic ? 0.15 : 0}
+            emissive={isGolden ? capsule.shellColor : '#000000'}
+            emissiveIntensity={isGolden ? 0.35 : 0}
           />
         </mesh>
 
@@ -68,8 +67,8 @@ export function CapsuleItem({ capsule, registerBody }: CapsuleItemProps) {
             color={capsule.accentColor}
             roughness={0.25}
             metalness={0.5}
-            emissive={isLegendary ? '#fde047' : '#000000'}
-            emissiveIntensity={isLegendary ? 0.5 : 0}
+            emissive={isGolden ? '#fde047' : '#000000'}
+            emissiveIntensity={isGolden ? 0.5 : 0}
           />
         </mesh>
 
