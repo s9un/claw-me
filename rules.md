@@ -1,4 +1,4 @@
-# CLAW ME! — Game Rules & Project Guide
+# CAPIT — Game Rules & Project Guide
 
 Game mesin capit 3D web-based (**Vite + React + TypeScript + Three.js / `@react-three/fiber` + `@react-three/rapier` + Tailwind CSS + Supabase**).
 Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/deploy.yml`).
@@ -8,10 +8,10 @@ Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/depl
 ## 24 Game Rules
 
 1. **Percobaan Tamu (Non-Login):** User belum login dapat mencoba permainan sebanyak **3x**, setelah itu diwajibkan login.
-2. **Peluang Tamu:** User belum login mendapat chance berhasil mencapit **30%**.
+2. **Peluang Tamu:** User belum login mendapat chance berhasil mencapit **30%**. Jika mendapatkan hadiah, **hadiah tidak akan disimpan** meskipun dia berhasil mendaftar akun baru.
 3. **Username User Login:** User login dapat merubah username mereka sendiri; pada awal login pertama diminta wajib membuat username baru.
 4. **Data User Login:** Disimpan `username`, `email`, dan jumlah token koin (`free_tokens` & `paid_tokens`) via SSO Google / Facebook (Supabase Auth).
-5. **Konfigurasi Peluang:** User login memiliki chance mendapatkan hadiah sesuai rarity yang dapat ditentukan di config file (`supabase/chc.env.example` / Supabase Secrets).
+5. **Konfigurasi Peluang:** User login memiliki chance mendapatkan hadiah sesuai rarity yang dapat ditentukan di config database (`public.game_config`).
 6. **Sistem Token (`CCoin`) & Reset Harian:**
    - **Non-login:** Mendapatkan **3 CCoin Gratis** setiap harinya, reset tiap jam **00:00 AM GMT+7**. User non-login hanya bisa memiliki maksimal 3 token gratis.
    - **Login:** Mendapatkan **+3 CCoin Gratis** tiap harinya (reset 00:00 AM GMT+7), dan dapat **terakumulasi tanpa batas** hanya ketika user login di hari itu.
@@ -36,9 +36,10 @@ Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/depl
 19. **Album Koleksi:** Menampilkan **Collectibles ME** yang sudah didapat dalam bentuk sticker ter-reveal sesuai frame tier-nya, dan yang belum didapat hanya berupa **siluet**.
 20. **Sistem Series:** Hadiah memiliki series (saat ini **First Edition**, bulan depan **Neon Cyber**).
 21. **Pilih Series:** Sebelum mencapit, user dapat memilih series mana yang ingin dimainkan.
-22. **Tampilan `[CCoin]`:** Token gratis berwarna **biru**, token berbayar berwarna **kuning**, keduanya bernama **CCoin** dan selalu ditampilkan bersamaan **atas–bawah** (atas: gratis, bawah: berbayar).
+22. **Tampilan `[CCoin]`:** Token gratis/free berwarna **biru**, token berbayar/paid berwarna **kuning**, keduanya bernama **CCoin** dan selalu ditampilkan bersamaan **atas–bawah** (atas: free, bawah: paid).
 23. **Penamaan Hadiah:** Selalu gunakan istilah **Collectibles ME** (jangan gunakan kata *hewan*).
 24. **Skalabilitas Mode:** Arsitektur mendukung penambahan mode permainan baru di masa depan (`src/data/gameModes.ts`).
+25. **Optimasi Mobile:** Permainan dioptimalkan untuk penggunaan di layar browser handphone (`100dvh`, kamera responsif, dan kontrol sentuh `touch-none`).
 
 ---
 

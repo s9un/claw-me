@@ -251,18 +251,38 @@ export function getCollectiblesBySeries(seriesId: string): CollectibleItem[] {
   return [];
 }
 
+export interface RarityRatesConfig {
+  tierC: number;
+  tierB: number;
+  tierA: number;
+  tierSS: number;
+  tierSSR: number;
+}
+
+export const DEFAULT_RARITY_RATES: RarityRatesConfig = {
+  tierC: 58.9,
+  tierB: 25,
+  tierA: 15,
+  tierSS: 1,
+  tierSSR: 0.1,
+};
+
 /**
- * Roll tier based on Rule #17 (58.9% C, 25% B, 15% A, 1% SS, 0.1% SSR)
+ * Roll tier based on config database (default: 58.9% C, 25% B, 15% A, 1% SS, 0.1% SSR)
  */
-export function rollCollectibleOutcome(seriesId: string): CollectibleItem {
+export function rollCollectibleOutcome(
+  seriesId: string,
+  rates: RarityRatesConfig = DEFAULT_RARITY_RATES
+): CollectibleItem {
   const pool = getCollectiblesBySeries(seriesId);
-  const roll = Math.random() * 100;
+  const total = rates.tierC + rates.tierB + rates.tierA + rates.tierSS + rates.tierSSR;
+  const roll = Math.random() * (total > 0 ? total : 100);
 
   let chosenTier: Tier = 'C';
-  if (roll < 0.1) chosenTier = 'SSR';
-  else if (roll < 1.1) chosenTier = 'SS';
-  else if (roll < 16.1) chosenTier = 'A';
-  else if (roll < 41.1) chosenTier = 'B';
+  if (roll < rates.tierSSR) chosenTier = 'SSR';
+  else if (roll < rates.tierSSR + rates.tierSS) chosenTier = 'SS';
+  else if (roll < rates.tierSSR + rates.tierSS + rates.tierA) chosenTier = 'A';
+  else if (roll < rates.tierSSR + rates.tierSS + rates.tierA + rates.tierB) chosenTier = 'B';
   else chosenTier = 'C';
 
   if (chosenTier === 'C') {

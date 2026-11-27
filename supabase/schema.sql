@@ -61,6 +61,31 @@ create table if not exists public.saweria_transactions (
   created_at timestamptz not null default now()
 );
 
+-- 4b. Tabel Konfigurasi Game & Drop Rate (Rule #5)
+create table if not exists public.game_config (
+  id text primary key default 'default',
+  catch_chance_normal numeric not null default 10,
+  catch_chance_pity numeric not null default 90,
+  pity_threshold integer not null default 10,
+  tier_c_chance numeric not null default 58.9,
+  tier_b_chance numeric not null default 25,
+  tier_a_chance numeric not null default 15,
+  tier_ss_chance numeric not null default 1,
+  tier_ssr_chance numeric not null default 0.1,
+  daily_free_tokens integer not null default 3,
+  clawme_redeem_tokens integer not null default 5,
+  token_price_idr integer not null default 1000,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.game_config (id) values ('default') on conflict (id) do nothing;
+
+alter table public.game_config enable row level security;
+
+create policy "Game config readable by everyone"
+  on public.game_config for select
+  using (true);
+
 -- 5. Aktifkan Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.series enable row level security;

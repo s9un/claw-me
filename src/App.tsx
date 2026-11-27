@@ -27,21 +27,22 @@ import { SaweriaModal } from './components/SaweriaModal';
 import { UsernameModal } from './components/UsernameModal';
 import {
   createRandomCapsule,
+  DEFAULT_RARITY_RATES,
   generateInitialCapsules,
   getCollectiblesBySeries,
   rollCollectibleOutcome,
   SERIES_LIST,
   type CapsuleEntity,
   type CollectibleItem,
+  type RarityRatesConfig,
 } from './data/collectibles';
 import { GAME_MODES, type GameModeId } from './data/gameModes';
 import { supabase } from './lib/supabase';
 import { soundEngine } from './utils/sound';
 import { getTimeUntilWibMidnight, getTodayWibDateString } from './utils/timeWib';
 
-const GUEST_TOKENS_KEY = 'claw-me-guest-tokens-v1';
-const GUEST_RESET_DATE_KEY = 'claw-me-guest-reset-date-v1';
-const GUEST_COLLECTION_KEY = 'claw-me-guest-collection-v1';
+const GUEST_TOKENS_KEY = 'capit-guest-tokens-v1';
+const GUEST_RESET_DATE_KEY = 'capit-guest-reset-date-v1';
 
 export function App() {
   const [gameModeId, setGameModeId] = useState<GameModeId>('classic');
@@ -77,15 +78,14 @@ export function App() {
   const [pityCounter, setPityCounter] = useState(0);
   const [pityBonusActive, setPityBonusActive] = useState(false);
 
-  // Owned counts keyed by `${seriesId}:${collectibleId}`
-  const [ownedCounts, setOwnedCounts] = useState<Record<string, number>>(() => {
-    try {
-      const raw = localStorage.getItem(GUEST_COLLECTION_KEY);
-      return raw ? (JSON.parse(raw) as Record<string, number>) : {};
-    } catch {
-      return {};
-    }
-  });
+  // Database-driven drop rate & catch config (Rule #5)
+  const [rarityRates, setRarityRates] = useState<RarityRatesConfig>(DEFAULT_RARITY_RATES);
+  const [dbCatchNormal, setDbCatchNormal] = useState<number | null>(null);
+  const [dbCatchPity, setDbCatchPity] = useState<number | null>(null);
+  const [pityThreshold, setPityThreshold] = useState<number>(10);
+
+  // Owned counts keyed by `${seriesId}:${collectibleId}` (logged-in users only)
+  const [ownedCounts, setOwnedCounts] = useState<Record<string, number>>({});
 
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -115,8 +115,8 @@ export function App() {
   const totalTokens = user ? freeTokens + paidTokens : guestTokens;
   const catchChance = user
     ? pityBonusActive
-      ? activeMode.pityCatchChance
-      : activeMode.normalCatchChance
+      ? (dbCatchPity ?? activeMode.pityCatchChance)
+      : (dbCatchNormal ?? activeMode.normalCatchChance)
     : activeMode.guestCatchChance;
 
   const unlockedAnimalsCount = useMemo(() => {
@@ -124,16 +124,40 @@ export function App() {
     return animals.filter((i) => (ownedCounts[`${activeSeriesId}:${i.id}`] ?? 0) > 0).length;
   }, [activeSeriesId, ownedCounts]);
 
-  // Persist guest state
+  // Persist guest token count only (Rule #2: guest prizes are NOT saved)
   useEffect(() => {
     if (user) return;
     try {
       localStorage.setItem(GUEST_TOKENS_KEY, String(guestTokens));
-      localStorage.setItem(GUEST_COLLECTION_KEY, JSON.stringify(ownedCounts));
     } catch {
       // ignore
     }
-  }, [guestTokens, ownedCounts, user]);
+  }, [guestTokens, user]);
+
+  // Load game_config from Supabase database (Rule #5)
+  useEffect(() => {
+    if (!supabase) return;
+    supabase
+      .from('game_config')
+      .select(
+        'catch_chance_normal, catch_chance_pity, pity_threshold, tier_c_chance, tier_b_chance, tier_a_chance, tier_ss_chance, tier_ssr_chance'
+      )
+      .eq('id', 'default')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setDbCatchNormal(Number(data.catch_chance_normal));
+        setDbCatchPity(Number(data.catch_chance_pity));
+        setPityThreshold(Number(data.pity_threshold));
+        setRarityRates({
+          tierC: Number(data.tier_c_chance),
+          tierB: Number(data.tier_b_chance),
+          tierA: Number(data.tier_a_chance),
+          tierSS: Number(data.tier_ss_chance),
+          tierSSR: Number(data.tier_ssr_chance),
+        });
+      });
+  }, []);
 
   // Sync user profile, daily GMT+7 tokens, and collectibles
   const syncUserData = useCallback(async (loggedUser: User) => {
@@ -339,7 +363,7 @@ export function App() {
         if (!wonCapsule) return prev;
 
         soundEngine.playWin();
-        const rolledPrize = rollCollectibleOutcome(activeSeriesId);
+        const rolledPrize = rollCollectibleOutcome(activeSeriesId, rarityRates);
         setPendingReveal({ capsule: wonCapsule, prize: rolledPrize });
 
         // Reset pity on successful catch
@@ -359,12 +383,12 @@ export function App() {
           }
         }
 
-        // Save collectible (skip Zonk from album count)
-        if (rolledPrize.kind !== 'zonk') {
+        // Save collectible ONLY for logged-in users (Rule #2: guest prizes are never saved)
+        if (user && rolledPrize.kind !== 'zonk') {
           const key = `${activeSeriesId}:${rolledPrize.id}`;
           setOwnedCounts((curr) => {
             const nextQty = (curr[key] ?? 0) + 1;
-            if (supabase && user) {
+            if (supabase) {
               supabase
                 .from('user_collectibles')
                 .upsert(
@@ -384,7 +408,11 @@ export function App() {
           });
         }
 
-        setStatusText(`Kapsul masuk Drop Zone! Buka untuk melihat hadiah ${rolledPrize.tier}.`);
+        setStatusText(
+          user
+            ? `Kapsul masuk Drop Zone! Buka untuk melihat hadiah ${rolledPrize.tier}.`
+            : 'Mode Tamu: kapsul terbuka (hadiah tamu tidak disimpan ke akun).'
+        );
 
         const remaining = prev.filter((c) => c.uid !== uid);
         if (remaining.length < 8) {
@@ -396,7 +424,7 @@ export function App() {
         return remaining;
       });
     },
-    [activeSeriesId, user]
+    [activeSeriesId, rarityRates, user]
   );
 
   const handleAttemptFinished = useCallback(
@@ -420,7 +448,7 @@ export function App() {
       if (usedPityOnCurrentTurnRef.current) {
         nextPity = 0;
         nextBonus = false;
-      } else if (nextPity >= 10) {
+      } else if (nextPity >= pityThreshold) {
         nextBonus = true;
         setPityModalOpen(true);
       }
@@ -447,7 +475,7 @@ export function App() {
         setStatusText(`Capit lepas! Pity counter: ${nextPity}/10`);
       }
     },
-    [freeTokens, guestTokens, paidTokens, pityCounter, user]
+    [freeTokens, guestTokens, paidTokens, pityCounter, pityThreshold, user]
   );
 
   const handleSaveUsername = async (newUsername: string): Promise<string | null> => {
@@ -515,7 +543,7 @@ export function App() {
     !pityModalOpen;
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-[#090714]">
+    <div className="relative h-dvh w-screen overflow-hidden bg-[#090714]">
       <ClawMachineScene
         capsules={capsules}
         inputVector={inputVector}
@@ -535,7 +563,7 @@ export function App() {
           <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-white/15 bg-slate-950/75 px-4 py-2 backdrop-blur-md">
             <Sparkles className="h-5 w-5 text-pink-400" />
             <h1 className="font-display bg-gradient-to-r from-yellow-200 via-pink-300 to-cyan-300 bg-clip-text text-xl font-bold tracking-wide text-transparent">
-              CLAW ME!
+              CAPIT
             </h1>
 
             {/* Mode Selector (Scalable) */}
@@ -630,27 +658,27 @@ export function App() {
             </button>
           )}
 
-          {/* CCoin Stacked Display (Top: Gratis Blue, Bottom: Berbayar Yellow) */}
+          {/* CCoin Stacked Display (Top: Free Blue, Bottom: Paid Yellow) */}
           <div
-            className="flex items-center gap-2.5 rounded-2xl border border-white/15 bg-slate-950/80 px-3.5 py-1.5 backdrop-blur-md"
+            className="flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/80 px-3 py-1.5 backdrop-blur-md"
             title={
               user
-                ? `CCoin Gratis: ${freeTokens} | CCoin Berbayar: ${paidTokens} • Reset harian GMT+7 dalam ${getTimeUntilWibMidnight()}`
-                : `CCoin Gratis Tamu (maks 3/hari) • Reset GMT+7 dalam ${getTimeUntilWibMidnight()}`
+                ? `CCoin Free: ${freeTokens} | CCoin Paid: ${paidTokens} • Reset harian GMT+7 dalam ${getTimeUntilWibMidnight()}`
+                : `CCoin Free Tamu (maks 3/hari) • Reset GMT+7 dalam ${getTimeUntilWibMidnight()}`
             }
           >
             <div className="flex flex-col leading-tight">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400">
-                <Coins className="h-3.5 w-3.5" />
-                <span>CCoin Gratis:</span>
-                <span className="font-display text-sm text-sky-300">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-sky-400 sm:text-xs">
+                <Coins className="h-3.5 w-3.5 shrink-0" />
+                <span>CCoin Free:</span>
+                <span className="font-display text-xs text-sky-300 sm:text-sm">
                   {user ? freeTokens : `${guestTokens}/3`}
                 </span>
               </div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-xs font-bold text-amber-400">
-                <Coins className="h-3.5 w-3.5" />
-                <span>CCoin Berbayar:</span>
-                <span className="font-display text-sm text-amber-300">
+              <div className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-amber-400 sm:text-xs">
+                <Coins className="h-3.5 w-3.5 shrink-0" />
+                <span>CCoin Paid:</span>
+                <span className="font-display text-xs text-amber-300 sm:text-sm">
                   {user ? paidTokens : 0}
                 </span>
               </div>
@@ -702,9 +730,9 @@ export function App() {
         Drag layar untuk putar kamera • Scroll untuk zoom • Waktu GMT+7
       </div>
 
-      {/* Bottom Arcade Controls */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-20 flex items-end justify-center px-4">
-        <div className="pointer-events-auto flex items-center gap-5 rounded-3xl border border-white/15 bg-slate-950/80 px-5 py-3 shadow-2xl backdrop-blur-md">
+      {/* Bottom Arcade Controls (Mobile Touch Optimized) */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex items-end justify-center px-3 sm:bottom-4 sm:px-4">
+        <div className="pointer-events-auto touch-none flex items-center gap-4 rounded-3xl border border-white/15 bg-slate-950/85 px-4 py-2.5 shadow-2xl backdrop-blur-md sm:gap-5 sm:px-5 sm:py-3">
           <div className="grid grid-cols-3 gap-1.5">
             <div />
             <button
@@ -797,6 +825,7 @@ export function App() {
       <CapsuleRevealModal
         capsule={pendingReveal?.capsule ?? null}
         prize={pendingReveal?.prize ?? null}
+        isGuest={!user}
         onClose={() => setPendingReveal(null)}
       />
 

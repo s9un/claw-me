@@ -190,7 +190,7 @@ export function Cabinet({ inputVector, isDropping, onCapsuleEnteredChute }: Cabi
         anchorY="middle"
         letterSpacing={0.08}
       >
-        CLAW ME!
+        CAPIT
       </Text>
 
       {/* Transparent Glass Panels (Front, Left, Right) */}

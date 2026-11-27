@@ -40,12 +40,19 @@ export function ClawMachineScene({
     }
   }, []);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
   return (
     <Canvas
       shadows
       dpr={[1, 2]}
-      camera={{ position: [0, 3.1, 6.9], fov: 44, near: 0.1, far: 50 }}
-      className="h-full w-full"
+      camera={{
+        position: isMobile ? [0, 3.2, 8.8] : [0, 3.1, 6.9],
+        fov: isMobile ? 48 : 44,
+        near: 0.1,
+        far: 50,
+      }}
+      className="h-full w-full touch-none"
     >
       <color attach="background" args={['#090714']} />
       <fog attach="fog" args={['#090714', 11, 26]} />

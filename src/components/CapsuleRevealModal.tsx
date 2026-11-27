@@ -7,10 +7,16 @@ import { CollectibleArtwork } from './CollectibleArtwork';
 interface CapsuleRevealModalProps {
   capsule: CapsuleEntity | null;
   prize: CollectibleItem | null;
+  isGuest?: boolean;
   onClose: () => void;
 }
 
-export function CapsuleRevealModal({ capsule, prize, onClose }: CapsuleRevealModalProps) {
+export function CapsuleRevealModal({
+  capsule,
+  prize,
+  isGuest = false,
+  onClose,
+}: CapsuleRevealModalProps) {
   const [opened, setOpened] = useState(false);
 
   if (!capsule || !prize) return null;
@@ -106,11 +112,17 @@ export function CapsuleRevealModal({ capsule, prize, onClose }: CapsuleRevealMod
               </div>
             )}
 
+            {isGuest && prize.kind !== 'zonk' && (
+              <p className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                Mode Tamu: hadiah ini tidak disimpan meskipun nanti Anda mendaftar akun baru.
+              </p>
+            )}
+
             <button
               onClick={handleClose}
               className="font-display mt-6 w-full rounded-2xl bg-white px-6 py-3 text-base font-bold text-slate-900 transition hover:bg-slate-200 active:scale-95"
             >
-              {prize.kind === 'zonk' ? 'Coba Lagi' : 'Simpan ke Album'}
+              {prize.kind === 'zonk' ? 'Coba Lagi' : isGuest ? 'Tutup' : 'Simpan ke Album'}
             </button>
           </div>
         )}

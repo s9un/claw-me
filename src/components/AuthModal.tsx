@@ -52,7 +52,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500/25 to-cyan-500/25 text-cyan-300">
             <LogIn className="h-6 w-6" />
           </div>
-          <h2 className="font-display mt-3 text-2xl font-bold text-white">Masuk ke CLAW ME!</h2>
+          <h2 className="font-display mt-3 text-2xl font-bold text-white">Masuk ke CAPIT</h2>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">
             Simpan koleksi hadiah, koin, dan poin Anda secara otomatis di cloud agar bisa diakses
             dari perangkat mana saja.
