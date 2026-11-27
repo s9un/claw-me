@@ -117,11 +117,12 @@ create policy "Game config readable by everyone"
   using (true);
 
 -- 5. Aktifkan Row Level Security (RLS) & Grant Hak Akses
-grant usage on schema public to anon, authenticated;
+grant usage on schema public to anon, authenticated, service_role;
 grant select on public.game_config to anon, authenticated;
 grant select on public.series to anon, authenticated;
 grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update on public.user_collectibles to authenticated;
+grant all on public.profiles, public.user_collectibles, public.saweria_transactions, public.series, public.game_config to service_role;
 
 alter table public.profiles enable row level security;
 alter table public.series enable row level security;
