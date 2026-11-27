@@ -10,7 +10,7 @@ Live domain: `https://claw.sgun.name/` (GitHub Pages via `.github/workflows/depl
 1. **Percobaan Tamu (Non-Login):** User belum login dapat mencoba permainan sebanyak **3x**, setelah itu diwajibkan login.
 2. **Peluang Tamu:** User belum login mendapat chance berhasil mencapit **30%**. Jika mendapatkan hadiah, **hadiah tidak akan disimpan** meskipun dia berhasil mendaftar akun baru.
 3. **Username User Login:** User login dapat merubah username mereka sendiri; pada awal login pertama diminta wajib membuat username baru.
-4. **Data User Login:** Disimpan `username`, `email`, dan jumlah token koin (`free_tokens` & `paid_tokens`) via SSO Google / Facebook (Supabase Auth).
+4. **Data User Login:** Disimpan `username`, `email`, dan jumlah token koin (`free_tokens` & `paid_tokens`) via Google SSO (Supabase Auth).
 5. **Konfigurasi Peluang:** User login memiliki chance mendapatkan hadiah sesuai rarity yang dapat ditentukan di config database (`public.game_config`).
 6. **Sistem Token (`CCoin`) & Reset Harian:**
    - **Non-login:** Mendapatkan **3 CCoin Gratis** setiap harinya, reset tiap jam **00:00 AM GMT+7**. User non-login hanya bisa memiliki maksimal 3 token gratis.

@@ -8,18 +8,18 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ open, onClose }: AuthModalProps) {
-  const [loadingProvider, setLoadingProvider] = useState<'google' | 'facebook' | null>(null);
+  const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!open) return null;
 
-  const handleOAuthLogin = async (provider: 'google' | 'facebook') => {
+  const handleGoogleLogin = async () => {
     if (!supabase) return;
     setErrorMsg(null);
-    setLoadingProvider(provider);
+    setLoading(true);
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
       },
@@ -27,7 +27,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
 
     if (error) {
       setErrorMsg(error.message);
-      setLoadingProvider(null);
+      setLoading(false);
     }
   };
 
@@ -66,14 +66,14 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
               Tambahkan <code className="rounded bg-black/30 px-1">VITE_SUPABASE_URL</code> dan{' '}
               <code className="rounded bg-black/30 px-1">VITE_SUPABASE_ANON_KEY</code> pada file{' '}
               <code className="rounded bg-black/30 px-1">.env</code> atau GitHub Secrets untuk
-              mengaktifkan login Google & Facebook.
+              mengaktifkan login Google.
             </p>
           </div>
         ) : (
           <div className="mt-6 space-y-3">
             <button
-              onClick={() => handleOAuthLogin('google')}
-              disabled={loadingProvider !== null}
+              onClick={handleGoogleLogin}
+              disabled={loading}
               className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow transition hover:bg-slate-100 active:scale-95 disabled:opacity-60"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -94,18 +94,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
                 />
               </svg>
-              {loadingProvider === 'google' ? 'Menghubungkan...' : 'Lanjutkan dengan Google'}
-            </button>
-
-            <button
-              onClick={() => handleOAuthLogin('facebook')}
-              disabled={loadingProvider !== null}
-              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#1877F2] px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#166fe5] active:scale-95 disabled:opacity-60"
-            >
-              <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073Z" />
-              </svg>
-              {loadingProvider === 'facebook' ? 'Menghubungkan...' : 'Lanjutkan dengan Facebook'}
+              {loading ? 'Menghubungkan...' : 'Lanjutkan dengan Google'}
             </button>
 
             {errorMsg && (

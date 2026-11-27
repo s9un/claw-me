@@ -112,7 +112,6 @@ export function App() {
   const [inputVector, setInputVector] = useState({ x: 0, z: 0 });
   const usedPityOnCurrentTurnRef = useRef(false);
 
-  const totalTokens = user ? freeTokens + paidTokens : guestTokens;
   const catchChance = user
     ? pityBonusActive
       ? (dbCatchPity ?? activeMode.pityCatchChance)
@@ -259,7 +258,7 @@ export function App() {
     if (!user) {
       if (guestTokens <= 0) {
         setAuthModalOpen(true);
-        setStatusText('3x percobaan tamu habis! Silakan login Google / Facebook.');
+        setStatusText('3x percobaan tamu habis! Silakan login dengan Google.');
         return;
       }
       setGuestTokens((t) => Math.max(0, t - 1));
@@ -533,8 +532,8 @@ export function App() {
     setStatusText('Keluar berhasil. Kembali ke mode tamu.');
   };
 
+  // Allow claw movement/drop whenever no modal is open; token checks happen in triggerDrop()
   const canPlay =
-    totalTokens > 0 &&
     !pendingReveal &&
     !albumOpen &&
     !authModalOpen &&
@@ -654,7 +653,7 @@ export function App() {
               className="flex items-center gap-2 rounded-2xl border border-cyan-400/35 bg-cyan-500/15 px-3.5 py-2 text-xs font-semibold text-cyan-200 backdrop-blur-md transition hover:bg-cyan-500/25 active:scale-95"
             >
               <LogIn className="h-4 w-4" />
-              <span>Login (Google / FB)</span>
+              <span>Login Google</span>
             </button>
           )}
 
